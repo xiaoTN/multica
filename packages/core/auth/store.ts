@@ -17,6 +17,8 @@ export interface AuthStoreOptions {
   onSessionExpired?: () => void;
   /** When true, rely on HttpOnly cookies instead of localStorage for auth tokens. */
   cookieAuth?: boolean;
+  /** 本机单用户模式自动准备身份，不提供账号登录和切换。 */
+  localSession?: boolean;
 }
 
 export type AuthStatus =
@@ -26,6 +28,7 @@ export type AuthStatus =
   | "recovering";
 
 export interface AuthState {
+  localSession: boolean;
   user: User | null;
   isLoading: boolean;
   status: AuthStatus;
@@ -50,10 +53,11 @@ export interface AuthState {
 }
 
 export function createAuthStore(options: AuthStoreOptions) {
-  const { api, storage, onLogin, onLogout, onSessionExpired, cookieAuth } =
+  const { api, storage, onLogin, onLogout, onSessionExpired, cookieAuth, localSession = false } =
     options;
 
   return create<AuthState>((set, get) => ({
+    localSession,
     user: null,
     isLoading: true,
     status: "authenticating",
@@ -108,6 +112,10 @@ export function createAuthStore(options: AuthStoreOptions) {
     },
 
     logout: () => {
+      if (localSession) {
+        get().retryAuthentication();
+        return;
+      }
       if (cookieAuth) {
         // Clear server-side HttpOnly cookie.
         api.logout().catch(() => {});
@@ -138,6 +146,16 @@ export function createAuthStore(options: AuthStoreOptions) {
      * about it separately.
      */
     sessionExpired: () => {
+      if (localSession) {
+        if (get().status === "recovering") return;
+        storage.removeItem("multica_token");
+        api.setToken(null);
+        set((state) => ({
+          user: null, isLoading: true, status: "recovering", expired: false,
+          retryGeneration: state.retryGeneration + 1,
+        }));
+        return;
+      }
       // "Expired" is a claim about the user's own history, so only make it
       // when this client really did present a credential the server then
       // rejected: a live session, or a stored token left by an earlier one.

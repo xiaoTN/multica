@@ -87,11 +87,13 @@ function renderInitializer({
   storage = makeStorage({ multica_token: "token-1" }),
   cookieAuth = false,
   platform = "desktop",
+  localSession = false,
 }: {
   api: ApiClient;
   storage?: StorageAdapter;
   cookieAuth?: boolean;
   platform?: "desktop" | "web";
+  localSession?: boolean;
 }) {
   const onLogin = vi.fn();
   const onLogout = vi.fn();
@@ -100,12 +102,13 @@ function renderInitializer({
   });
   setApiInstance(api);
   registerAuthStore(
-    createAuthStore({ api, storage, cookieAuth, onLogin, onLogout }),
+    createAuthStore({ api, storage, cookieAuth, localSession, onLogin, onLogout }),
   );
 
   const result = render(
     <QueryClientProvider client={queryClient}>
       <AuthInitializer
+        localSession={localSession}
         cookieAuth={cookieAuth}
         identity={{ platform }}
         onLogin={onLogin}
@@ -136,6 +139,31 @@ afterEach(() => {
 });
 
 describe("AuthInitializer recovery", () => {
+  it("本机首次启动没有凭据时自动进入已有工作区", async () => {
+    const storage = makeStorage();
+    const createLocalSession = vi.fn().mockResolvedValue({ token: "local-token", user: fakeUser });
+    const api = makeApi({ createLocalSession });
+    const { queryClient } = renderInitializer({ api, storage, localSession: true });
+
+    await waitFor(() => expect(useAuthStore.getState().status).toBe("authenticated"));
+    expect(createLocalSession).toHaveBeenCalledOnce();
+    expect(storage.getItem("multica_token")).toBe("local-token");
+    await waitFor(() => expect(queryClient.getQueryData(workspaceKeys.list())).toEqual(fakeWorkspaces));
+  });
+
+  it("本机后台暂时不可用时保留数据并允许重试", async () => {
+    const storage = makeStorage({ "chat-draft": "未完成的任务" });
+    const createLocalSession = vi.fn().mockRejectedValueOnce(new TypeError("服务未启动"))
+      .mockResolvedValue({ token: "local-token", user: fakeUser });
+    const api = makeApi({ createLocalSession });
+    renderInitializer({ api, storage, localSession: true });
+
+    await waitFor(() => expect(useAuthStore.getState().status).toBe("recovering"));
+    expect(storage.getItem("chat-draft")).toBe("未完成的任务");
+    act(() => useAuthStore.getState().retryAuthentication());
+    await waitFor(() => expect(useAuthStore.getState().status).toBe("authenticated"));
+  });
+
   it("keeps self-host commands available when an older API omits the target", async () => {
     renderInitializer({ api: makeApiWithConfigResponse({
       daemon_server_url: " https://api.example.com/// ",

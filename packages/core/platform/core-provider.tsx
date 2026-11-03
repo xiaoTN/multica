@@ -48,6 +48,7 @@ interface InitCoreOptions {
   onLogout?: () => void;
   onSessionExpired?: () => void;
   cookieAuth?: boolean;
+  localSession?: boolean;
   identity?: ClientIdentity;
 }
 
@@ -58,6 +59,7 @@ function initCore({
   onLogout,
   onSessionExpired,
   cookieAuth,
+  localSession,
   identity,
 }: InitCoreOptions) {
   if (initialized) return;
@@ -119,6 +121,7 @@ function initCore({
     onLogout,
     onSessionExpired,
     cookieAuth,
+    localSession,
   });
   registerAuthStore(authStore);
 
@@ -143,6 +146,7 @@ export function CoreProvider({
   wsUrl = "ws://localhost:8080/ws",
   storage = defaultStorage,
   cookieAuth,
+  localSession,
   onLogin,
   onLogout,
   onSessionExpired,
@@ -154,7 +158,6 @@ export function CoreProvider({
 }: CoreProviderProps) {
   // Initialize singletons on first render only. Dependencies are read-once:
   // apiBaseUrl, storage, and callbacks are set at app boot and never change at runtime.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useMemo(
     () =>
       initCore({
@@ -164,8 +167,10 @@ export function CoreProvider({
         onLogout,
         onSessionExpired,
         cookieAuth,
+        localSession,
         identity,
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -201,6 +206,7 @@ export function CoreProvider({
         onLogin={onLogin}
         storage={storage}
         cookieAuth={cookieAuth}
+        localSession={localSession}
         identity={identity}
       >
         {/* Desktop's reporter owns both activity and runtime state so it must

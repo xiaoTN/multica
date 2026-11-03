@@ -49,6 +49,7 @@ import (
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/featureflag"
 	"github.com/multica-ai/multica/server/pkg/llm"
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 	publicapiv1 "github.com/multica-ai/multica/server/pkg/publicapi/v1"
 )
 
@@ -1569,10 +1570,14 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	authRL := middleware.RateLimit(rdb, envPositiveInt("RATE_LIMIT_AUTH", 5), time.Minute, trustedProxies)
 	authVerifyRL := middleware.RateLimit(rdb, envPositiveInt("RATE_LIMIT_AUTH_VERIFY", 20), time.Minute, trustedProxies)
 	contactSalesRL := middleware.RateLimit(rdb, envPositiveInt("RATE_LIMIT_CONTACT_SALES", 5), time.Hour, trustedProxies)
-	r.With(authRL).Post("/auth/send-code", h.SendCode)
-	r.With(authVerifyRL).Post("/auth/verify-code", h.VerifyCode)
-	r.With(authRL).Post("/auth/google", h.GoogleLogin)
-	r.Post("/auth/logout", h.Logout)
+	if localnetwork.Enabled() {
+		r.Post("/auth/local", h.LocalSession)
+	} else {
+		r.With(authRL).Post("/auth/send-code", h.SendCode)
+		r.With(authVerifyRL).Post("/auth/verify-code", h.VerifyCode)
+		r.With(authRL).Post("/auth/google", h.GoogleLogin)
+		r.Post("/auth/logout", h.Logout)
+	}
 
 	// Public API
 	r.Get("/api/config", h.GetConfig)

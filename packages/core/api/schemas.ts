@@ -2734,6 +2734,11 @@ export const UserSchema = z.object({
   updated_at: z.string().default(""),
 }).loose();
 
+export const LocalSessionResponseSchema = z.object({
+  token: z.string().min(1),
+  user: UserSchema.extend({ id: z.string().min(1) }),
+});
+
 export const EMPTY_USER: User = {
   id: "",
   name: "",

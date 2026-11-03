@@ -190,7 +190,9 @@ export function DesktopNavigationProvider({
     () => ({
       push: (path: string) => {
         if (path === "/login") {
-          useAuthStore.getState().logout();
+          const auth = useAuthStore.getState();
+          if (auth.localSession) auth.retryAuthentication();
+          else auth.logout();
           return;
         }
         if (tryRouteToOverlay(path)) return;

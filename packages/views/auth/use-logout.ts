@@ -26,6 +26,10 @@ export function useLogout() {
   const { push } = useNavigation();
 
   return useCallback(() => {
+    if (useAuthStore.getState().localSession) {
+      useAuthStore.getState().retryAuthentication();
+      return;
+    }
     // Shared with the session-expiry path, which has to erase exactly the
     // same client-side state — see core's platform/session-cleanup for what
     // and why.

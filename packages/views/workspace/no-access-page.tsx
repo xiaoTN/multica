@@ -12,6 +12,7 @@ import { useNavigation } from "../navigation";
 import { useLogout } from "../auth";
 import { DragStrip } from "../platform";
 import { useT } from "../i18n";
+import { useAuthStore } from "@multica/core/auth";
 
 /**
  * Rendered when the workspace slug in the URL does not resolve to a workspace
@@ -23,6 +24,7 @@ export function NoAccessPage() {
   const { t } = useT("workspace");
   const nav = useNavigation();
   const logout = useLogout();
+  const localSession = useAuthStore((s) => s.localSession);
   const hasOnboarded = useHasOnboarded();
   const { data: workspaces = [] } = useQuery(workspaceListOptions());
 
@@ -62,9 +64,11 @@ export function NoAccessPage() {
           <Button onClick={recover}>
             {t(($) => $.no_access.go_to_workspaces)}
           </Button>
-          <Button variant="outline" onClick={logout}>
-            {t(($) => $.no_access.sign_in_different)}
-          </Button>
+          {!localSession && (
+            <Button variant="outline" onClick={logout}>
+              {t(($) => $.no_access.sign_in_different)}
+            </Button>
+          )}
         </div>
       </div>
     </div>

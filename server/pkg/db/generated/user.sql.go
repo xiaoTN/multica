@@ -45,6 +45,35 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const getLocalUser = `-- name: GetLocalUser :one
+SELECT id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone FROM "user"
+ORDER BY created_at, id
+LIMIT 1
+`
+
+// 本机版沿用最早创建的用户，确保改成免登录后还能访问原有工作区。
+func (q *Queries) GetLocalUser(ctx context.Context) (User, error) {
+	row := q.db.QueryRow(ctx, getLocalUser)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.CloudWaitlistEmail,
+		&i.CloudWaitlistReason,
+		&i.StarterContentState,
+		&i.Language,
+		&i.ProfileDescription,
+		&i.Timezone,
+	)
+	return i, err
+}
+
 const getUser = `-- name: GetUser :one
 SELECT id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone FROM "user"
 WHERE id = $1
@@ -228,6 +257,37 @@ type PatchUserOnboardingParams struct {
 // frontend Zustand transient store.
 func (q *Queries) PatchUserOnboarding(ctx context.Context, arg PatchUserOnboardingParams) (User, error) {
 	row := q.db.QueryRow(ctx, patchUserOnboarding, arg.Questionnaire, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.CloudWaitlistEmail,
+		&i.CloudWaitlistReason,
+		&i.StarterContentState,
+		&i.Language,
+		&i.ProfileDescription,
+		&i.Timezone,
+	)
+	return i, err
+}
+
+const prepareLocalUser = `-- name: PrepareLocalUser :one
+UPDATE "user" SET
+    onboarded_at = COALESCE(onboarded_at, now()),
+    onboarding_questionnaire = onboarding_questionnaire || '{"source_skipped":true}'::jsonb
+WHERE id = $1
+RETURNING id, name, email, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, cloud_waitlist_email, cloud_waitlist_reason, starter_content_state, language, profile_description, timezone
+`
+
+// 本机版自动完成引导，跳过来源问卷并保留其他资料。
+func (q *Queries) PrepareLocalUser(ctx context.Context, id pgtype.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, prepareLocalUser, id)
 	var i User
 	err := row.Scan(
 		&i.ID,

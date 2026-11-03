@@ -6,6 +6,20 @@ WHERE id = $1;
 SELECT * FROM "user"
 WHERE email = $1;
 
+-- name: GetLocalUser :one
+-- 本机版沿用最早创建的用户，确保改成免登录后还能访问原有工作区。
+SELECT * FROM "user"
+ORDER BY created_at, id
+LIMIT 1;
+
+-- name: PrepareLocalUser :one
+-- 本机版自动完成引导，跳过来源问卷并保留其他资料。
+UPDATE "user" SET
+    onboarded_at = COALESCE(onboarded_at, now()),
+    onboarding_questionnaire = onboarding_questionnaire || '{"source_skipped":true}'::jsonb
+WHERE id = $1
+RETURNING *;
+
 -- name: GetUsersByIDs :many
 -- Batch lookup from the GLOBAL user table (not gated on membership, so departed
 -- members still render). Used to enrich attribution initiator / originator refs on

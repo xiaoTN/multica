@@ -35,6 +35,7 @@ export function AuthInitializer({
   onLogin,
   storage = defaultStorage,
   cookieAuth,
+  localSession = false,
   identity,
 }: {
   children: ReactNode;
@@ -44,6 +45,7 @@ export function AuthInitializer({
   // callbacks live.
   storage?: StorageAdapter;
   cookieAuth?: boolean;
+  localSession?: boolean;
   identity?: ClientIdentity;
 }) {
   const qc = useQueryClient();
@@ -274,7 +276,7 @@ export function AuthInitializer({
         }
         // Workspace consumers observe this query directly. React Query owns
         // retries and refetch-on-reconnect independently from identity auth.
-        logger.error("workspace bootstrap failed", err);
+        logger.error("加载工作区失败", err);
       });
     };
 
@@ -287,7 +289,16 @@ export function AuthInitializer({
       inFlight = true;
 
       try {
-        const user = await api.getMe();
+        let user: User;
+        if (localSession) {
+          const session = await api.createLocalSession();
+          if (cancelled) return;
+          storage.setItem("multica_token", session.token);
+          api.setToken(session.token);
+          user = session.user;
+        } else {
+          user = await api.getMe();
+        }
         if (cancelled) return;
 
         // Identity verification and workspace loading are separate concerns
@@ -299,13 +310,13 @@ export function AuthInitializer({
         warmWorkspaces();
       } catch (err) {
         if (cancelled) return;
-        if (err instanceof ApiError && err.status === 401) {
+        if (!localSession && err instanceof ApiError && err.status === 401) {
           rejectSession();
           return;
         }
 
         if (!loggedTransientFailure) {
-          logger.error("auth init temporarily unavailable", err);
+          logger.error("暂时无法准备用户信息", err);
           loggedTransientFailure = true;
         }
         authRecoveryPendingRef.current = true;
@@ -338,7 +349,10 @@ export function AuthInitializer({
       void attempt();
     };
 
-    if (!cookieAuth) {
+    if (localSession) {
+      window.addEventListener("online", retryNow);
+      void attempt();
+    } else if (!cookieAuth) {
       const token = storage.getItem("multica_token");
       if (!token) {
         // No credential to verify. Same published state as a rejected one,
@@ -394,12 +408,12 @@ export function AuthInitializer({
       clearedForThisSession.current = false;
       return;
     }
-    if (authStatus !== "unauthenticated" || clearedForThisSession.current) {
+    if (localSession || authStatus !== "unauthenticated" || clearedForThisSession.current) {
       return;
     }
     clearedForThisSession.current = true;
     clearClientSessionData(qc, storage);
-  }, [authStatus, qc, storage]);
+  }, [authStatus, localSession, qc, storage]);
 
   return <>{children}</>;
 }

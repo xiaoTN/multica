@@ -359,6 +359,7 @@ import {
   TaskMessageListSchema,
   TimelineEntriesSchema,
   UserSchema,
+  LocalSessionResponseSchema,
   WebhookDeliveryResponseSchema,
   BillingBalanceSchema,
   BillingTransactionsPageSchema,
@@ -1002,6 +1003,15 @@ export class ApiClient {
   }
 
   // Auth
+  async createLocalSession(): Promise<LoginResponse> {
+    const raw = await this.fetch<unknown>("/auth/local", { method: "POST" });
+    const session = parseWithFallback(raw, LocalSessionResponseSchema, { token: "", user: EMPTY_USER }, {
+      endpoint: "POST /auth/local",
+    });
+    if (!session.token || !session.user.id) throw new Error("本机服务返回的用户信息不完整");
+    return session;
+  }
+
   async sendCode(email: string): Promise<void> {
     await this.fetch("/auth/send-code", {
       method: "POST",

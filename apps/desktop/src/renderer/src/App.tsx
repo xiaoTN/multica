@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CoreProvider } from "@multica/core/platform";
 import { pickLocale, type SupportedLocale } from "@multica/core/i18n";
@@ -11,7 +11,6 @@ import { setCurrentWorkspace } from "@multica/core/platform";
 import { ThemeProvider } from "@multica/ui/components/common/theme-provider";
 import { MulticaIcon } from "@multica/ui/components/common/multica-icon";
 import { Toaster } from "@multica/ui/components/ui/sonner";
-import { DesktopLoginPage } from "./pages/login";
 import { DesktopAuthRecoveryPage } from "./pages/auth-recovery";
 import { DesktopShell } from "./components/desktop-layout";
 import { IssueWindow } from "./components/issue-window";
@@ -106,7 +105,7 @@ function IssueWindowContent() {
     );
   }
 
-  return user ? <IssueWindow context={context} /> : <DesktopLoginPage />;
+  return user ? <IssueWindow context={context} /> : <DesktopAuthRecoveryPage />;
 }
 
 function AppContent() {
@@ -114,15 +113,6 @@ function AppContent() {
   const isLoading = useAuthStore((s) => s.isLoading);
   const authStatus = useAuthStore((s) => s.status);
   const qc = useQueryClient();
-
-  // Deep-link login runs loginWithToken → syncToken → listWorkspaces →
-  // setQueryData sequentially. loginWithToken sets user+isLoading=false
-  // as soon as getMe resolves, which would cause DesktopShell to mount
-  // before the workspace list is hydrated and briefly see `!workspace`.
-  // This local flag keeps the loading screen up until the whole chain
-  // finishes, so IndexRedirect gets a definitive workspace state on
-  // first render.
-  const [bootstrapping, setBootstrapping] = useState(false);
 
   const runtimeConfig = window.desktopAPI.runtimeConfig.ok
     ? window.desktopAPI.runtimeConfig.config
@@ -146,29 +136,6 @@ function AppContent() {
     });
   }, []);
 
-  // Listen for auth token delivered via deep link (multica://auth/callback?token=...).
-  // daemonAPI.syncToken is handled separately by the [user] effect below, which
-  // fires whenever a user logs in (deep link, session restore, account switch).
-  useEffect(() => {
-    return window.desktopAPI.onAuthToken(async (token) => {
-      setBootstrapping(true);
-      try {
-        await useAuthStore.getState().loginWithToken(token);
-        // Seed React Query cache with the workspace list so the index-route
-        // redirect (routes.tsx `IndexRedirect`) can resolve the initial
-        // destination without a second fetch. Workspace side-effects
-        // (setCurrentWorkspace, persist namespace) are synced later by
-        // WorkspaceRouteLayout when the URL resolves.
-        const wsList = await api.listWorkspaces();
-        qc.setQueryData(workspaceKeys.list(), wsList);
-      } catch {
-        // Token invalid or expired — user stays on login page
-      } finally {
-        setBootstrapping(false);
-      }
-    });
-  }, [qc]);
-
   // Sync token and start the daemon whenever the user logs in. The ordering
   // inside syncDaemonOnLogin is load-bearing — see that module.
   useEffect(() => {
@@ -185,7 +152,7 @@ function AppContent() {
           userId,
         );
       } catch (err) {
-        console.error("Failed to sync daemon on login", err);
+        console.error("同步本地执行服务失败", err);
       }
     })();
   }, [user, runtimeConfig]);
@@ -328,7 +295,7 @@ function AppContent() {
   if (authStatus === "recovering") {
     return <DesktopAuthRecoveryPage />;
   }
-  if (isLoading || bootstrapping) {
+  if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <MulticaIcon mode="launch" size={40} />
@@ -347,7 +314,7 @@ function AppContent() {
     );
   }
 
-  return user ? <DesktopShell /> : <DesktopLoginPage />;
+  return user ? <DesktopShell /> : <DesktopAuthRecoveryPage />;
 }
 
 function BlockingRuntimeConfigError({ message }: { message: string }) {
@@ -466,6 +433,7 @@ export default function App() {
     <ThemeProvider>
       {runtimeConfigResult.ok ? (
         <CoreProvider
+          localSession
           apiBaseUrl={runtimeConfigResult.config.apiUrl}
           wsUrl={runtimeConfigResult.config.wsUrl}
           onLogout={

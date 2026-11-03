@@ -63,6 +63,7 @@ import {
   SourceContextPreviewSchema,
   TimelineEntriesSchema,
   UserSchema,
+  LocalSessionResponseSchema,
   PluginInstallationSchema,
   PluginInstallationListResponseSchema,
   PluginMCPToolListSchema,
@@ -1065,6 +1066,17 @@ describe("DuplicateIssueErrorBodySchema", () => {
 // `timezone` key. The schema must not fail closed on that: the field
 // defaults to `null`, which the frontend resolves to the browser-detected
 // tz at render time.
+describe("本机自动准备身份的响应", () => {
+  it("为缺少可选资料的用户补默认值", () => {
+    expect(LocalSessionResponseSchema.parse({ token: "local", user: { id: "u1" } }).user.name).toBe("");
+  });
+  it.each([{}, { token: "" }, { token: "local", user: {} }, { token: "local", user: { id: 1 } }])(
+    "拒绝无法使用的凭据或用户信息 %j", (value) => {
+      expect(LocalSessionResponseSchema.safeParse(value).success).toBe(false);
+    },
+  );
+});
+
 describe("UserSchema timezone drift", () => {
   const base = {
     id: "11111111-1111-1111-1111-111111111111",

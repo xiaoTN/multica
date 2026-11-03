@@ -13,6 +13,13 @@ const TEST_RESOURCES = {
 const navigate = vi.fn();
 const logout = vi.fn();
 const mockWorkspaces = vi.hoisted(() => [{ slug: "valid-team" }]);
+const authState = vi.hoisted(() => ({ localSession: false }));
+
+vi.mock("@multica/core/auth", () => ({
+  useAuthStore: Object.assign((selector: (state: typeof authState) => unknown) => selector(authState), {
+    getState: () => authState,
+  }),
+}));
 
 vi.mock("../navigation", () => ({
   useNavigation: () => ({ push: navigate, replace: navigate }),
@@ -55,6 +62,7 @@ function renderPage() {
 
 describe("NoAccessPage", () => {
   beforeEach(() => {
+    authState.localSession = false;
     navigate.mockReset();
     logout.mockReset();
   });
@@ -64,6 +72,12 @@ describe("NoAccessPage", () => {
     expect(
       screen.getByText(/doesn't exist or you don't have access/i),
     ).toBeInTheDocument();
+  });
+
+  it("本机版不显示切换账号入口", () => {
+    authState.localSession = true;
+    renderPage();
+    expect(screen.queryByRole("button", { name: /sign in as a different user/i })).toBeNull();
   });
 
   it("navigates to the first accessible workspace on 'Go to my workspaces'", () => {

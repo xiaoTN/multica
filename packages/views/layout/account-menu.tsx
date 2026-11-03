@@ -74,6 +74,7 @@ function ExternalItem({ href, icon, label }: { href: string; icon: React.ReactNo
 export function AccountMenu() {
   const { t, i18n } = useT("layout");
   const user = useAuthStore((s) => s.user);
+  const localSession = useAuthStore((s) => s.localSession);
   const p = useWorkspacePaths();
   const logout = useLogout();
   const { theme, setTheme } = useTheme();
@@ -177,13 +178,17 @@ export function AccountMenu() {
             />
           )}
         </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem variant="destructive" onClick={logout}>
-            <LogOut />
-            {t(($) => $.sidebar.log_out)}
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
+        {!localSession && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem variant="destructive" onClick={logout}>
+                <LogOut />
+                {t(($) => $.sidebar.log_out)}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

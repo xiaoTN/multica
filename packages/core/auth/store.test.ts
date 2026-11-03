@@ -33,6 +33,19 @@ function makeApi(): ApiClient {
 }
 
 describe("authStore", () => {
+  it("本机凭据失效时自动重试，不清理草稿或停止后台服务", () => {
+    const storage = makeStorage({ multica_token: "old", draft: "未完成" });
+    const onSessionExpired = vi.fn();
+    const store = createAuthStore({ api: makeApi(), storage, localSession: true, onSessionExpired });
+    store.setState({ user: fakeUser, status: "authenticated", isLoading: false });
+    store.getState().sessionExpired();
+    store.getState().sessionExpired();
+    expect(store.getState().status).toBe("recovering");
+    expect(store.getState().retryGeneration).toBe(1);
+    expect(storage.getItem("draft")).toBe("未完成");
+    expect(onSessionExpired).not.toHaveBeenCalled();
+  });
+
   it("publishes a retry request instead of silently ignoring it", () => {
     const storage = makeStorage({ multica_token: "t" });
     const api = makeApi();

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -206,6 +207,9 @@ func urlPrivateIP(rawURL string) net.IP {
 // serverURL, or nil if detection fails. The UDP dial does not send packets —
 // it just causes the kernel to pick a source IP for the destination route.
 func detectOutboundIP(serverURL string) net.IP {
+	if err := localnetwork.RequireURL(serverURL); err != nil {
+		return nil
+	}
 	parsed, err := url.Parse(serverURL)
 	if err != nil || parsed.Hostname() == "" {
 		return nil

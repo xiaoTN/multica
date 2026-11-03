@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 )
 
 // detectGitRepo checks if dir is inside a git repository (regular or bare).
@@ -33,6 +35,9 @@ func detectGitRepo(dir string) (string, bool) {
 
 // fetchOrigin runs `git fetch origin` to ensure the local repo has the latest remote refs.
 func fetchOrigin(gitRoot string) error {
+	if localnetwork.Enabled() {
+		return nil
+	}
 	cmd := exec.Command("git", "-C", gitRoot, "fetch", "origin")
 
 	if out, err := cmd.CombinedOutput(); err != nil {

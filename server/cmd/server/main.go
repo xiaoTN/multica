@@ -34,6 +34,7 @@ import (
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/featureflag"
 	"github.com/multica-ai/multica/server/pkg/llm"
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -44,6 +45,9 @@ var (
 
 func newNamedRedisClient(base *redis.UniversalOptions, suffix string) redis.UniversalClient {
 	opts := *base
+	if localnetwork.Enabled() {
+		opts.Dialer = localnetwork.DialContext
+	}
 	if envBool("REDIS_DISABLE_CLIENT_NAME", false) {
 		opts.ClientName = ""
 	} else {
@@ -326,6 +330,11 @@ func newMainHTTPServer(addr string, handler http.Handler) *http.Server {
 
 func main() {
 	logger.Init()
+	localnetwork.Activate()
+	if err := localnetwork.ValidateLocalServices(); err != nil {
+		slog.Error("本机服务配置不符合要求", "error", err)
+		os.Exit(1)
+	}
 	// Read the opt-out before constructing any telemetry dependency. In the
 	// disabled case no collector or HTTP client is ever created.
 	telemetryConfig := selfhosttelemetry.ConfigFromDoNotTrack(os.Getenv("DO_NOT_TRACK"))
@@ -618,6 +627,9 @@ func main() {
 	registerIssueUnreadListeners(bus, queries)
 
 	metricsConfig := obsmetrics.ConfigFromEnv()
+	if !obsmetrics.IsLoopbackAddr(metricsConfig.Addr) {
+		metricsConfig.Addr = ""
+	}
 	var metricsServer *http.Server
 	var httpMetrics *obsmetrics.HTTPMetrics
 	var businessMetrics *obsmetrics.BusinessMetrics
@@ -712,7 +724,7 @@ func main() {
 	// the scheduler's Run goroutine starts so the field write is race-free.
 	heartbeatScheduler.RecoveryNotifier = h
 
-	srv := newMainHTTPServer(":"+port, r)
+	srv := newMainHTTPServer("127.0.0.1:"+port, r)
 	profilingServer := profiling.NewServer()
 	maintenanceServer, maintenanceErr := maintenance.NewServer(os.Getenv("MAINTENANCE_PORT"), maintenance.NewService(pool, maintenance.StatusCategory{}))
 	if maintenanceErr != nil {

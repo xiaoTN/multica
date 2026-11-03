@@ -19,12 +19,12 @@ func newLoginTestCmd() *cobra.Command {
 	return cmd
 }
 
-func TestResolveLoginTokenServerURLDefaultsToCloud(t *testing.T) {
+func TestResolveLoginTokenServerURLDefaultsToLocal(t *testing.T) {
 	redirectTestHome(t, t.TempDir())
 	t.Setenv("MULTICA_SERVER_URL", "")
 
-	if got := resolveLoginTokenServerURL(newLoginTestCmd()); got != defaultCloudServerURL {
-		t.Fatalf("resolveLoginTokenServerURL() = %q, want %q", got, defaultCloudServerURL)
+	if got := resolveLoginTokenServerURL(newLoginTestCmd()); got != "http://127.0.0.1:8080" {
+		t.Fatalf("默认登录地址没有指向本机：%q", got)
 	}
 }
 

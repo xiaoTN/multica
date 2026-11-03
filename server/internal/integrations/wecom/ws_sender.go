@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 )
 
 // wsConn is the subset of gorilla's Conn the wecom package uses. Kept
@@ -51,6 +52,16 @@ type gorillaDialer struct {
 }
 
 func (g gorillaDialer) DialContext(ctx context.Context, u string, header http.Header) (wsConn, *http.Response, error) {
+	if err := localnetwork.RequireURL(u); err != nil {
+		return nil, nil, err
+	}
+	if localnetwork.Enabled() {
+		d := *g.d
+		d.Proxy = nil
+		d.NetDialContext = localnetwork.DialContext
+		conn, resp, err := d.DialContext(ctx, u, header)
+		return conn, resp, err
+	}
 	conn, resp, err := g.d.DialContext(ctx, u, header)
 	if err != nil {
 		return nil, resp, err

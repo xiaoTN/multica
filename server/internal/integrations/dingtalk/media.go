@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/multica-ai/multica/server/internal/integrations/channel"
@@ -115,6 +116,9 @@ type publicDownloadDialer struct {
 }
 
 func (d *publicDownloadDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	if err := localnetwork.RequireAddress(address); err != nil {
+		return nil, err
+	}
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil, errors.New("invalid download target address")

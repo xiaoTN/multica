@@ -16,6 +16,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 )
 
 const (
@@ -87,6 +88,10 @@ func ParsePoolConfig(databaseURL string, connectTimeout time.Duration) (*pgxpool
 	cfg, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse database url: %w", err)
+	}
+	if localnetwork.Enabled() {
+		cfg.ConnConfig.DialFunc = localnetwork.DialContext
+		return cfg, nil
 	}
 	if pgxConnectTimeoutConfigured(databaseURL, cfg.ConnConfig.ConnectTimeout) {
 		return cfg, nil

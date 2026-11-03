@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 	"github.com/spf13/cobra"
 
 	"github.com/multica-ai/multica/server/internal/cli"
@@ -19,35 +20,8 @@ import (
 var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Configure the CLI, authenticate, and start the daemon",
-	Long: `Configures the CLI to connect to Multica Cloud (multica.ai), then
-authenticates via browser and starts the agent daemon.
-
-If a configuration already exists, you will be prompted before overwriting.
-
-Use 'multica setup self-host' to connect to a self-hosted server instead.
-
-If you run this command over SSH on a remote machine, keep the localhost
-callback and follow the SSH tunnel hint printed during browser login. If your
-browser can reach this CLI directly on a private network address, pass
---callback-host <host-or-ip>.
-
-Use --profile to create an isolated configuration for a separate environment:
-  multica setup self-host --profile staging --server-url https://api-staging.co`,
-	RunE: runSetupCloud,
-}
-
-var setupCloudCmd = &cobra.Command{
-	Use:   "cloud",
-	Short: "Configure the CLI for Multica Cloud (multica.ai)",
-	Long: `Explicitly configures the CLI to connect to Multica Cloud (multica.ai).
-
-If you run this command over SSH on a remote machine, keep the localhost
-callback and follow the SSH tunnel hint printed during browser login. If your
-browser can reach this CLI directly on a private network address, pass
---callback-host <host-or-ip>.
-
-This is equivalent to running 'multica setup' without a subcommand.`,
-	RunE: runSetupCloud,
+	Long:  "连接本机的 Multica 后端，完成本机账号登录并启动后台程序。默认后端端口为 8080，网页端口为 3000。",
+	RunE:  runSetupSelfHost,
 }
 
 var setupSelfHostCmd = &cobra.Command{
@@ -71,7 +45,6 @@ Examples:
 
 func init() {
 	setupCmd.Flags().String(callbackHostFlag, "", callbackHostFlagHelp)
-	setupCloudCmd.Flags().String(callbackHostFlag, "", callbackHostFlagHelp)
 
 	setupSelfHostCmd.Flags().String("server-url", "", "Backend server URL (e.g. https://api.internal.co) (env: MULTICA_SERVER_URL)")
 	setupSelfHostCmd.Flags().String("app-url", "", "Frontend app URL (e.g. https://app.internal.co) (env: MULTICA_APP_URL)")
@@ -79,7 +52,9 @@ func init() {
 	setupSelfHostCmd.Flags().Int("frontend-port", 3000, "Frontend port (used when --app-url is not set)")
 	setupSelfHostCmd.Flags().String(callbackHostFlag, "", callbackHostFlagHelp)
 
-	setupCmd.AddCommand(setupCloudCmd)
+	setupCmd.Flags().String("app-url", "", "本机网页地址")
+	setupCmd.Flags().Int("port", 8080, "本机后端端口")
+	setupCmd.Flags().Int("frontend-port", 3000, "本机网页端口")
 	setupCmd.AddCommand(setupSelfHostCmd)
 }
 
@@ -138,48 +113,6 @@ func formatURLChange(oldVal, newVal string) string {
 	return oldVal
 }
 
-func runSetupCloud(cmd *cobra.Command, args []string) error {
-	if err := requireHumanLocalCommand("setup"); err != nil {
-		return err
-	}
-	profile := resolveProfile(cmd)
-
-	cfg := cli.CLIConfig{
-		ServerURL: defaultCloudServerURL,
-		AppURL:    defaultCloudAppURL,
-	}
-
-	ok, err := confirmOverwrite(profile, cfg.ServerURL, cfg.AppURL)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return nil
-	}
-
-	if err := cli.SaveCLIConfigForProfile(cfg, profile); err != nil {
-		return fmt.Errorf("save config: %w", err)
-	}
-
-	fmt.Fprintln(os.Stderr, "Configured for Multica Cloud (https://multica.ai).")
-	fmt.Fprintf(os.Stderr, "  server_url: %s\n", cfg.ServerURL)
-	fmt.Fprintf(os.Stderr, "  app_url:    %s\n", cfg.AppURL)
-	printConfigLocation(profile)
-
-	// Authenticate.
-	fmt.Fprintln(os.Stderr, "")
-	if err := runLogin(cmd, args); err != nil {
-		return err
-	}
-
-	if err := runDaemonAfterSetup(cmd, args); err != nil {
-		return fmt.Errorf("start or restart daemon: %w", err)
-	}
-	fmt.Fprintln(os.Stderr, "\n✓ Setup complete! Your machine is now connected to Multica.")
-
-	return nil
-}
-
 func runSetupSelfHost(cmd *cobra.Command, args []string) error {
 	if err := requireHumanLocalCommand("setup"); err != nil {
 		return err
@@ -198,6 +131,9 @@ func runSetupSelfHost(cmd *cobra.Command, args []string) error {
 	// error (GitHub #3912).
 	existing, _ := cli.LoadCLIConfigForProfile(profile)
 	serverURL, userProvidedServerURL := resolveSelfHostServerURL(cmd, existing)
+	if err := localnetwork.RequireURL(serverURL); err != nil {
+		return err
+	}
 	appURL := resolveSelfHostAppURL(cmd, existing)
 	frontendPort, _ := cmd.Flags().GetInt("frontend-port")
 
@@ -219,6 +155,9 @@ func runSetupSelfHost(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if err := localnetwork.RequireURL(appURL); err != nil {
+		return err
+	}
 	ok, err := confirmOverwrite(profile, serverURL, appURL)
 	if err != nil {
 		return err

@@ -357,7 +357,7 @@ func resolveLoginTokenServerURL(cmd *cobra.Command) string {
 	if val := tryResolveHumanServerURL(cmd); val != "" {
 		return val
 	}
-	return defaultCloudServerURL
+	return "http://127.0.0.1:8080"
 }
 
 func normalizeAPIBaseURL(raw string) string {

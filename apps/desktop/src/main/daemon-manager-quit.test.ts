@@ -38,17 +38,16 @@ vi.mock("fs/promises", async (original) => ({
     }
     return path.endsWith("desktop_prefs.json")
       ? JSON.stringify({ autoStart: context.autoStart, autoStop: context.autoStop })
-      : JSON.stringify({ server_url: "https://example.test" });
+      : JSON.stringify({ server_url: "http://127.0.0.1:8080" });
   }),
   writeFile: vi.fn(), mkdir: vi.fn(),
 }));
-vi.mock("./cli-bootstrap", () => ({ ensureManagedCli: context.install, managedCliPath: () => "/test/managed/multica" }));
 vi.mock("./daemon-port", () => ({ probeProfileHealth: context.health, readDaemonPortRecord: context.readPort }));
 
 async function setup() {
   const { setupDaemonManager } = await import("./daemon-manager");
   setupDaemonManager(() => null);
-  await context.handlers.get("daemon:set-target-api-url")!({}, "https://example.test");
+  await context.handlers.get("daemon:set-target-api-url")!({}, "http://127.0.0.1:8080");
   await context.handlers.get("daemon:is-cli-installed")!({});
   context.exec.mockClear();
 }
@@ -58,7 +57,7 @@ async function setupInstallingCLI() {
   context.install.mockReturnValue(new Promise(() => {}));
   const { setupDaemonManager } = await import("./daemon-manager");
   setupDaemonManager(() => null);
-  await context.handlers.get("daemon:set-target-api-url")!({}, "https://example.test");
+  await context.handlers.get("daemon:set-target-api-url")!({}, "http://127.0.0.1:8080");
 }
 function requestQuit() {
   const event = { preventDefault: vi.fn() };
@@ -131,7 +130,7 @@ describe("desktop quit uses the CLI lifecycle", () => {
       message: "1 run is active on this device.",
       buttons: ["Cancel", "Stop now and quit"], defaultId: 0,
     }));
-    expect(context.exec).toHaveBeenCalledWith(expect.any(String), ["daemon", "stop", "--force", "--profile", "desktop-example.test"], expect.objectContaining({ timeout: 55_000 }), expect.any(Function));
+    expect(context.exec).toHaveBeenCalledWith(expect.any(String), ["daemon", "stop", "--force", "--profile", "desktop-127.0.0.1-8080"], expect.objectContaining({ timeout: 55_000 }), expect.any(Function));
     expect(context.quit).not.toHaveBeenCalled();
     context.finishStop!();
     await vi.waitFor(() => expect(context.quit).toHaveBeenCalledOnce());

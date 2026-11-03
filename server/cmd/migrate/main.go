@@ -19,6 +19,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/logger"
 	"github.com/multica-ai/multica/server/internal/migrations"
 	"github.com/multica-ai/multica/server/internal/taskusagebackfill"
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 )
 
 // preMigrationHook runs work that must happen before a specific migration is
@@ -800,6 +801,11 @@ type runOptions struct {
 }
 
 func main() {
+	localnetwork.Activate()
+	if err := localnetwork.ValidateLocalServices(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	logger.Init()
 
 	if len(os.Args) < 2 {

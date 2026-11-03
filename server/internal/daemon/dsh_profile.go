@@ -16,6 +16,7 @@ import (
 
 	"github.com/multica-ai/multica/server/internal/daemon/processtree"
 	"github.com/multica-ai/multica/server/pkg/agent"
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 	"github.com/multica-ai/multica/server/pkg/redact"
 )
 
@@ -348,6 +349,9 @@ func dshProvisionCommand(dshPath, spec string) *exec.Cmd {
 // best-effort either way, and the missing-profile verdict stands until a probe
 // succeeds.
 func provisionDshMulticaProfile(ctx context.Context, dshPath string, logger *slog.Logger) error {
+	if localnetwork.Enabled() {
+		return fmt.Errorf("本机版本不自动安装运行工具，请事先自行安装")
+	}
 	if dshMulticaProfileNeedsMigration() {
 		return fmt.Errorf("%s", dshProfileMigrationReason)
 	}

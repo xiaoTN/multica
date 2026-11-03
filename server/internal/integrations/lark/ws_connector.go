@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 )
 
 // WSLongConnConnector bootstraps and maintains the Lark WebSocket connection.
@@ -622,6 +623,9 @@ func NewGorillaDialer() *GorillaDialer {
 }
 
 func (g *GorillaDialer) DialContext(ctx context.Context, urlStr string, requestHeader http.Header) (WSConn, *http.Response, error) {
+	if err := localnetwork.RequireURL(urlStr); err != nil {
+		return nil, nil, err
+	}
 	d := g.Dialer
 	if d == nil {
 		d = websocket.DefaultDialer
@@ -639,6 +643,10 @@ func (g *GorillaDialer) DialContext(ctx context.Context, urlStr string, requestH
 	}
 	if dd.Proxy == nil {
 		dd.Proxy = http.ProxyFromEnvironment
+	}
+	if localnetwork.Enabled() {
+		dd.Proxy = nil
+		dd.NetDialContext = localnetwork.DialContext
 	}
 	c, resp, err := dd.DialContext(ctx, urlStr, requestHeader)
 	if err != nil {

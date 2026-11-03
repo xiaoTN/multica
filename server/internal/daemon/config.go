@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/mattn/go-shellwords"
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
@@ -210,6 +211,9 @@ func LoadConfig(overrides Overrides) (Config, error) {
 	}
 	serverBaseURL, err := NormalizeServerBaseURL(rawServerURL)
 	if err != nil {
+		return Config{}, err
+	}
+	if err := localnetwork.RequireURL(serverBaseURL); err != nil {
 		return Config{}, err
 	}
 
@@ -598,6 +602,9 @@ func LoadConfig(overrides Overrides) (Config, error) {
 	// Operators on either side can flip the default with MULTICA_DAEMON_AUTO_UPDATE.
 	autoUpdateEnabled := boolFromEnv("MULTICA_DAEMON_AUTO_UPDATE", isOfficialCloudServer(serverBaseURL))
 	if overrides.DisableAutoUpdate {
+		autoUpdateEnabled = false
+	}
+	if localnetwork.Enabled() {
 		autoUpdateEnabled = false
 	}
 	autoUpdateInterval, err := durationFromEnv("MULTICA_DAEMON_AUTO_UPDATE_INTERVAL", DefaultAutoUpdateCheckInterval)

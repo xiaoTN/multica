@@ -15,6 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 	"github.com/resend/resend-go/v2"
 )
 
@@ -127,6 +128,9 @@ func resolveFromEmail(smtpHost string) string {
 
 func (s *EmailService) openSMTPClient() (*smtp.Client, error) {
 	addr := net.JoinHostPort(s.smtpHost, s.smtpPort)
+	if err := localnetwork.RequireAddress(addr); err != nil {
+		return nil, err
+	}
 
 	tlsCfg := &tls.Config{
 		ServerName:         s.smtpHost,

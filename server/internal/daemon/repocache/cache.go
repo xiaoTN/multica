@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/multica-ai/multica/server/internal/daemon/processtree"
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 	"github.com/multica-ai/multica/server/pkg/redact"
 )
 
@@ -89,7 +90,7 @@ func newGitCommand(args ...string) *exec.Cmd {
 	// A daemon can outlive the checkout it was launched from. Run Git from the
 	// filesystem root instead of inheriting a cwd that may have been deleted.
 	cmd.Dir = filepath.VolumeName(os.TempDir()) + string(os.PathSeparator)
-	cmd.Env = gitEnv()
+	cmd.Env = localnetwork.GitEnv(gitEnv())
 	return cmd
 }
 

@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 )
 
 // Local worktree mode gives every task on a local_directory resource its own
@@ -2180,6 +2182,9 @@ func runGitEnv(dir string, extraEnv []string, args ...string) (string, error) {
 	if len(extraEnv) > 0 {
 		cmd.Env = append(os.Environ(), extraEnv...)
 	}
+	if localnetwork.Enabled() {
+		cmd.Env = localnetwork.GitEnv(append(os.Environ(), extraEnv...))
+	}
 	cmd.WaitDelay = 5 * time.Second
 	out, err := cmd.CombinedOutput()
 	return string(out), err
@@ -2215,6 +2220,9 @@ func runGitStdout(dir string, args ...string) (string, error) {
 
 	full := append([]string{"-C", dir}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
+	if localnetwork.Enabled() {
+		cmd.Env = localnetwork.GitEnv(os.Environ())
+	}
 	cmd.WaitDelay = 5 * time.Second
 	out, err := cmd.Output()
 	if err != nil {

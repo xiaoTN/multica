@@ -22,6 +22,8 @@ import (
 	"sync"
 	"time"
 	"unicode/utf16"
+
+	"github.com/multica-ai/multica/server/pkg/httptransport"
 )
 
 // CursorHookHelperArg selects the Cursor hook relay mode of the multica
@@ -471,7 +473,9 @@ func cursorHookRelay(stdin io.Reader, getenv func(string) string) string {
 	}
 	httpReq.Header.Set("Authorization", "Bearer "+token)
 	httpReq.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Transport: &http.Transport{Proxy: nil}}
+	transport := httptransport.CloneDefault().(*http.Transport)
+	transport.Proxy = nil
+	client := &http.Client{Transport: transport}
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		return cursorHookRelayEmptyReply

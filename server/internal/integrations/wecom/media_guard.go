@@ -36,6 +36,8 @@ import (
 	"net/netip"
 	"strings"
 	"time"
+
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 )
 
 // ErrMediaAddrBlocked is returned instead of a connection when every address
@@ -241,6 +243,9 @@ type mediaGuard struct {
 // refused, rather than the whole name allowed on the strength of one good
 // answer.
 func (g mediaGuard) dial(ctx context.Context, network, addr string) (net.Conn, error) {
+	if err := localnetwork.RequireAddress(addr); err != nil {
+		return nil, err
+	}
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, fmt.Errorf("wecom: media dial: %w", err)

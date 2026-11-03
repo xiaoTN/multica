@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/multica-ai/multica/server/pkg/httptransport"
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 )
 
 const (
@@ -32,6 +33,9 @@ type Resolver interface {
 }
 
 func ValidatePublicHTTPSEndpoint(ctx context.Context, raw string, allowedHosts []string, resolver Resolver) (*url.URL, error) {
+	if err := localnetwork.RequireURL(raw); err != nil {
+		return nil, err
+	}
 	endpoint, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
 		return nil, fmt.Errorf("parse endpoint: %w", err)
@@ -130,6 +134,9 @@ func NewSecureHTTPClient(endpoint *url.URL) *http.Client {
 		}
 	}
 	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		if err := localnetwork.RequireAddress(address); err != nil {
+			return nil, err
+		}
 		host, port, err := net.SplitHostPort(address)
 		if err != nil {
 			return nil, err

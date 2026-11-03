@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 )
 
 // Transfer-stall detection.
@@ -141,6 +143,10 @@ func NewStallAwareHTTPClient() *http.Client {
 		// Covers the phase the body guard cannot see: connected, request
 		// sent, server never replies.
 		ResponseHeaderTimeout: idle,
+	}
+	if localnetwork.Enabled() {
+		base.Proxy = nil
+		base.DialContext = localnetwork.DialContext
 	}
 	return &http.Client{
 		Transport: &stallGuardTransport{base: base, idle: idle},

@@ -55,6 +55,22 @@ func loopbackHost(host string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+// IsBrowserOrigin 只接受本机 HTTP 页面，不接受局域网地址或伪装成本机的域名。
+func IsBrowserOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") &&
+		u.User == nil && u.Path == "" && u.RawQuery == "" && u.Fragment == "" && loopbackHost(u.Hostname())
+}
+
+// BrowserOrigins 让不同端口的本机开发网页复用桌面后台，仍然只开放回环地址。
+func BrowserOrigins() []string {
+	return []string{
+		"http://localhost", "https://localhost", "http://localhost:*", "https://localhost:*",
+		"http://127.0.0.1", "https://127.0.0.1", "http://127.0.0.1:*", "https://127.0.0.1:*",
+		"http://[::1]", "https://[::1]", "http://[::1]:*", "https://[::1]:*",
+	}
+}
+
 func RequireAddress(address string) error {
 	if !Enabled() {
 		return nil

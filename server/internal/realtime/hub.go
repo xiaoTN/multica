@@ -18,6 +18,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 	"github.com/multica-ai/multica/server/internal/auth"
+	"github.com/multica-ai/multica/server/pkg/localnetwork"
 )
 
 // MembershipChecker verifies a user belongs to a workspace.
@@ -163,8 +164,16 @@ func firstForwardedHost(h string) string {
 }
 
 func checkOrigin(r *http.Request) bool {
+	return checkOriginForLocalMode(r, localnetwork.Enabled())
+}
+
+func checkOriginForLocalMode(r *http.Request, localMode bool) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
+		return true
+	}
+	// 本机版本的网页和桌面共享同一个后台；开发网页的端口可以不同。
+	if localMode && localnetwork.IsBrowserOrigin(origin) {
 		return true
 	}
 	// Same-origin: native clients (mobile, CLI) have no real page host, so

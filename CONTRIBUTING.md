@@ -159,9 +159,15 @@ make gc                      # collect expired environments or ones whose checko
 ```
 
 Components are `api` (Go backend), `web` (Next.js), `daemon` (agent daemon) and
-`desktop` (Electron). Selecting any of them implies `api`. `make up` is
+`desktop` (Electron). By default, selecting any of them implies `api`. `make up` is
 idempotent: re-running it against a live environment reuses the database, the
 profile and any component already healthy.
+
+要用网页迭代桌面端现有的项目和配置，在本地 `.env` 中填写
+`MULTICA_DESKTOP_API_URL=http://127.0.0.1:8080`。首次切换前运行 `make down`，
+再打开桌面应用并运行 `make up`。这个模式只启动网页，项目、智能体、模型和运行时都直接读取桌面后台；
+不会另启数据库或守护进程。网页端口仍由当前环境分配，保留代码自动刷新的开发方式。
+桌面端使用其他本机后台地址时，填入对应地址即可。
 
 Three properties are worth knowing because the old flow lacked them:
 

@@ -1478,7 +1478,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	r.Use(h.PluginSurfaceHostBoundary)
 	r.Use(middleware.ContentSecurityPolicy)
 
-	// Share allowed origins with WebSocket origin checker.
+	// 本机开发网页复用桌面后台，允许回环地址上的网页使用不同端口。
+	if localnetwork.Enabled() {
+		origins = append(origins, localnetwork.BrowserOrigins()...)
+	}
 	realtime.SetAllowedOrigins(origins)
 
 	// Share the same trusted-proxy CIDRs (MULTICA_TRUSTED_PROXIES) so the

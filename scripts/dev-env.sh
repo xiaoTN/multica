@@ -994,7 +994,7 @@ print_status_json() {
 print_handoff() {
   local entrypoint
   if component_selected web; then
-    entrypoint="Open        http://localhost:${FRONTEND_PORT}/${WORKSPACE_SLUG}/issues"
+    entrypoint="Open        http://localhost:${FRONTEND_PORT}/"
   elif component_selected desktop; then
     entrypoint="Desktop     renderer http://localhost:${DESKTOP_RENDERER_PORT} → backend :${BACKEND_PORT}"
   else
@@ -1006,7 +1006,7 @@ ${C_GREEN}✓ Environment ready.${C_OFF}
 
   ${entrypoint}
   Desktop     本机桌面端打开后自动进入工作区
-  Backend     http://localhost:${BACKEND_PORT}   (GET /health reports pid + commit + started_at)
+  Backend     ${MULTICA_DESKTOP_API_URL:-http://localhost:${BACKEND_PORT}}   (GET /health reports pid + commit + started_at)
   Commit      $(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)
   Environment ${NAME}$( [ "${TTL_HOURS:-0}" != 0 ] && printf ' (expires %s)' "$EXPIRES_AT" )
 
@@ -1089,9 +1089,12 @@ cmd_up() {
   for comp in $requested; do
     case " $ALL_COMPONENTS " in *" $comp "*) ;; *) die "Unknown component '$comp'. Valid: $ALL_COMPONENTS" ;; esac
   done
-  # web, daemon and desktop are all clients of the backend; selecting one
-  # without api would produce an environment that cannot serve a single request.
-  case " $requested " in *" api "*) ;; *) requested="api $requested" ;; esac
+  # 连接桌面后台时只启动网页，复用桌面的数据库和运行时。
+  if [ -n "${MULTICA_DESKTOP_API_URL:-}" ]; then
+    requested="web"
+  else
+    case " $requested " in *" api "*) ;; *) requested="api $requested" ;; esac
+  fi
   COMPONENTS="$requested"
 
   # No resident cleanup service is required: every future environment start is
@@ -1099,7 +1102,8 @@ cmd_up() {
   cmd_gc --auto
 
   step "Prerequisites"
-  local missing=() tool needed="node go curl"
+  local missing=() tool needed="node curl"
+  if component_selected api || component_selected daemon || component_selected desktop; then needed="$needed go"; fi
   # pnpm is only required by the components that actually build JavaScript, so
   # `up C=api` works on a checkout that has never run an install.
   if component_selected web || component_selected desktop; then needed="$needed pnpm"; fi
@@ -1112,7 +1116,7 @@ cmd_up() {
     info "TMPDIR pinned to $DEV_TMPDIR (was ${TMPDIR:-<unset>}) so builds outlive the run that made them."
     export TMPDIR="$DEV_TMPDIR" TMP="$DEV_TMPDIR" TEMP="$DEV_TMPDIR"
   fi
-  ok "node, go, curl found"
+  ok "所选组件的依赖已就绪"
 
   if component_selected daemon; then
     local marker
@@ -1212,10 +1216,23 @@ Start the rest with 'make up C=api,web', or run 'make up C=daemon' from your own
     (cd "$REPO_ROOT" && pnpm install) || die "pnpm install failed."
   fi
 
-  step "Database"
-  ensure_database
-  migrate_database
-  ok "$DB_NAME reachable through DATABASE_URL and migrated"
+  if [ -n "${MULTICA_DESKTOP_API_URL:-}" ]; then
+    step "复用桌面后台"
+    node -e '
+      const u = new URL(process.argv[1]);
+      if (!/^https?:$/.test(u.protocol) || !["localhost", "127.0.0.1", "[::1]"].includes(u.hostname) || u.username || u.password || u.pathname !== "/" || u.search || u.hash) process.exit(1);
+    ' "$MULTICA_DESKTOP_API_URL" || die "桌面后台必须是本机 HTTP 地址。"
+    export REMOTE_API_URL="${MULTICA_DESKTOP_API_URL%/}" NEXT_PUBLIC_API_URL="${MULTICA_DESKTOP_API_URL%/}"
+    NEXT_PUBLIC_WS_URL="$(node -e 'const u=new URL(process.argv[1]); u.protocol=u.protocol==="https:"?"wss:":"ws:"; u.pathname="/ws"; process.stdout.write(u.toString())' "$REMOTE_API_URL")"
+    export NEXT_PUBLIC_WS_URL
+    curl -sf --max-time 5 "$REMOTE_API_URL/health" >/dev/null || die "桌面后台未运行，请先打开 Agent团队协作 App。"
+    ok "项目、智能体、模型和运行时均使用桌面后台 $REMOTE_API_URL"
+  else
+    step "Database"
+    ensure_database
+    migrate_database
+    ok "$DB_NAME reachable through DATABASE_URL and migrated"
+  fi
 
   step "Components: $COMPONENTS"
   component_selected api && start_api

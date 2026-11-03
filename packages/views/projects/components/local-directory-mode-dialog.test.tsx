@@ -87,7 +87,7 @@ describe("LocalDirectoryModeDialog", () => {
 
     const option = worktreeOption();
     expect(option.hasAttribute("disabled")).toBe(true);
-    const notice = screen.getByText(/Multica server is too old/i);
+    const notice = screen.getByText(/Agent团队协作 server is too old/i);
     expect(notice.textContent).toMatch(/Update the server/i);
 
     fireEvent.click(option);
@@ -102,7 +102,7 @@ describe("LocalDirectoryModeDialog", () => {
   it("shows a server rejection inline so the dialog stays actionable", () => {
     renderDialog({
       errorMessage:
-        "the Multica runtime on that machine does not support it. Update the Multica app on that machine",
+        "the Agent团队协作 runtime on that machine does not support it. Update the Agent团队协作 app on that machine",
     });
     expect(screen.getByText(/does not support it/i)).toBeTruthy();
   });

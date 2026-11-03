@@ -14,16 +14,16 @@ describe("daemon quit dialog copy", () => {
   });
 
   it.each([
-    ["zh-CN", "退出 Multica"],
-    ["zh-SG", "退出 Multica"],
-    ["zh-Hant", "結束 Multica"],
-    ["zh-TW", "結束 Multica"],
-    ["zh-HK", "結束 Multica"],
-    ["zh-MO", "結束 Multica"],
-    ["ja-JP", "Multica を終了"],
-    ["ko-KR", "Multica 종료"],
-    ["fr-FR", "Quit Multica"],
-    ["", "Quit Multica"],
+    ["zh-CN", "退出 Agent团队协作"],
+    ["zh-SG", "退出 Agent团队协作"],
+    ["zh-Hant", "結束 Agent团队协作"],
+    ["zh-TW", "結束 Agent团队协作"],
+    ["zh-HK", "結束 Agent团队协作"],
+    ["zh-MO", "結束 Agent团队协作"],
+    ["ja-JP", "Agent团队协作 を終了"],
+    ["ko-KR", "Agent团队协作 종료"],
+    ["fr-FR", "Quit Agent团队协作"],
+    ["", "Quit Agent团队协作"],
   ])("resolves OS language %s using the native menu locale policy", (language, title) => {
     const options = quitConfirmationOptions(language, 3);
     expect(options.title).toBe(title);

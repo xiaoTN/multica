@@ -685,26 +685,17 @@ function createIssueWindow(context: IssueWindowContext): void {
 // is derived from the userData path. (Same approach VS Code uses for
 // Stable / Insiders coexistence.)
 
-// DESKTOP_APP_SUFFIX lets parallel worktrees run dev Electron side-by-side
-// without fighting for the shared single-instance lock. The suffix is
-// appended to the app name + userData path, so each worktree gets its own
-// lock file. Default (no env var) keeps behavior unchanged — the common
-// single-worktree case still lands at "Multica Canary".
+// 每个 worktree 可通过后缀使用独立的开发版名称和数据目录，避免抢占单实例锁。
 const DEV_APP_NAME = process.env.DESKTOP_APP_SUFFIX
-  ? `Multica Canary ${process.env.DESKTOP_APP_SUFFIX}`
-  : "Multica Canary";
+  ? `Agent团队协作 开发版 ${process.env.DESKTOP_APP_SUFFIX}`
+  : "Agent团队协作 开发版";
 
 if (is.dev) {
   app.setName(DEV_APP_NAME);
   app.setPath("userData", join(app.getPath("appData"), DEV_APP_NAME));
 } else {
-  // Pin the production app name in code. Electron's Linux WM_CLASS is set
-  // from app.getName() when the first BrowserWindow is realized; the
-  // packaged ASAR's package.json `productName` already steers app.getName()
-  // to "Multica", but anchoring it here makes WM_CLASS ↔ StartupWMClass
-  // (declared in electron-builder.yml) survive a regression in
-  // productName / the build pipeline. Must run before requestSingleInstanceLock().
-  app.setName("Multica");
+  // 与打包配置中的窗口类别保持一致，并在获取单实例锁之前设置。
+  app.setName("Agent团队协作");
 }
 
 // --- Protocol registration -----------------------------------------------
@@ -772,7 +763,7 @@ if (!gotTheLock) {
     });
 
     electronApp.setAppUserModelId(
-      is.dev ? "ai.multica.desktop.dev" : "ai.multica.desktop",
+      is.dev ? "local.agentteam.collaboration.desktop.dev" : "local.agentteam.collaboration.desktop",
     );
 
     // macOS: replace the default Electron dock icon with the bundled logo

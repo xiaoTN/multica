@@ -48,7 +48,7 @@ make status
 pnpm --filter @multica/desktop package -- --mac --arm64 --dir --publish never
 ```
 
-这会生成 `apps/desktop/dist/mac-arm64/Multica.app`，包含从当前源码编译的 CLI。`arm64` 适用于 Apple 芯片 Mac。本机开发构建没有苹果开发者证书和公证；构建完成不等于公司允许安装或运行。
+这会生成 `apps/desktop/dist/mac-arm64/Agent团队协作.app`，包含从当前源码编译的 CLI。`arm64` 适用于 Apple 芯片 Mac。本机开发构建没有苹果开发者证书和公证；构建完成不等于公司允许安装或运行。应用身份已改变，系统会将新版视为独立应用，本机登录和界面设置可能需要重新配置。
 
 ## 仍然存在的权限和数据范围
 

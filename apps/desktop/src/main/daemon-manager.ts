@@ -627,7 +627,7 @@ async function mintPat(jwt: string): Promise<string> {
       Authorization: `Bearer ${jwt}`,
     },
     // Omit expires_in_days → server treats as null → non-expiring PAT.
-    body: JSON.stringify({ name: "Multica Desktop" }),
+    body: JSON.stringify({ name: "Agent团队协作桌面版" }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -1584,7 +1584,7 @@ export function setupDaemonManager(
       // Do not queue behind an unresolved CLI installation during quit.
       if (!cachedCliBinary) {
         if (!healthy && await daemonProcessIsConfirmedAbsent(active.name)) return true;
-        throw new Error("Multica CLI is not available");
+        throw new Error("未找到 multica 命令行工具");
       }
       const window = getMainWindow();
       window?.setProgressBar(2);

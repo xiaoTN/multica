@@ -1,18 +1,7 @@
 #!/usr/bin/env node
-// Rebrand the bundled Electron.app's Info.plist so `pnpm dev:desktop`
-// shows "Multica Canary" in the menu bar, Cmd+Tab switcher, and
-// Activity Monitor. On macOS these titles come from CFBundleName at
-// launch time — `app.setName()` cannot override them at runtime, so
-// patching the plist in node_modules is the only working fix.
-//
-// Idempotent: runs on every dev launch and no-ops once the plist already
-// matches. The patch is isolated to this worktree's node_modules — we
-// unlink the file before rewriting so we never mutate a pnpm-store inode
-// shared with another project.
-//
-// In a worktree, scripts/dev.mjs sets DESKTOP_APP_SUFFIX so the name becomes
-// "Multica Canary <suffix>" — distinguishable in Cmd+Tab and matching the app
-// name src/main/index.ts derives from the same env var.
+// macOS 的菜单栏和切换器读取 Electron 的 plist，需要在启动前改开发版名称。
+// 每次启动时检查，名称一致就跳过；写入前解除硬链接，避免修改共享的依赖缓存。
+// worktree 后缀与主进程使用同一个环境变量，方便区分不同开发实例。
 
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
@@ -22,8 +11,8 @@ import { resolve } from "node:path";
 if (process.platform !== "darwin") process.exit(0);
 
 const DESIRED_NAME = process.env.DESKTOP_APP_SUFFIX
-  ? `Multica Canary ${process.env.DESKTOP_APP_SUFFIX}`
-  : "Multica Canary";
+  ? `Agent团队协作 开发版 ${process.env.DESKTOP_APP_SUFFIX}`
+  : "Agent团队协作 开发版";
 
 const require = createRequire(import.meta.url);
 // `require('electron')` returns the path to the executable

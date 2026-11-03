@@ -1,9 +1,9 @@
 {
   "name": "@multica/desktop",
-  "productName": "Multica",
+  "productName": "Agent团队协作",
   "version": "0.7.2",
   "private": true,
-  "description": "Multica Desktop — native desktop client for the Multica platform.",
+  "description": "Agent团队协作桌面应用",
   "homepage": "https://multica.ai",
   "repository": {
     "type": "git",

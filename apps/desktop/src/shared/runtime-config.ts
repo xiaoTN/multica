@@ -1,3 +1,5 @@
+import { requireLoopbackUrl } from "./local-network";
+
 export interface RuntimeConfig {
   schemaVersion: 1;
   apiUrl: string;
@@ -15,17 +17,12 @@ export type RuntimeConfigResult =
 
 export const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = Object.freeze({
   schemaVersion: 1,
-  apiUrl: "https://api.multica.ai",
-  wsUrl: "wss://api.multica.ai/ws",
-  appUrl: "https://multica.ai",
+  apiUrl: "http://127.0.0.1:8080",
+  wsUrl: "ws://127.0.0.1:8080/ws",
+  appUrl: "http://127.0.0.1:3000",
 });
 
-const LOCAL_DEV_RUNTIME_CONFIG: RuntimeConfig = Object.freeze({
-  schemaVersion: 1,
-  apiUrl: "http://localhost:8080",
-  wsUrl: "ws://localhost:8080/ws",
-  appUrl: "http://localhost:3000",
-});
+const LOCAL_DEV_RUNTIME_CONFIG = DEFAULT_RUNTIME_CONFIG;
 
 export interface RuntimeConfigEnv {
   apiUrl?: string;
@@ -78,7 +75,7 @@ export function parseRuntimeConfig(raw: string): RuntimeConfig {
     schemaVersion: 1,
     apiUrl: normalizedApiUrl,
     wsUrl: wsUrl ? normalizeWsUrl(wsUrl, "wsUrl") : deriveWsUrl(normalizedApiUrl),
-    appUrl: appUrl ? normalizeHttpUrl(appUrl, "appUrl") : deriveAppUrl(normalizedApiUrl),
+    appUrl: appUrl ? normalizeHttpUrl(appUrl, "appUrl") : deriveDevAppUrl(normalizedApiUrl),
   };
 }
 
@@ -149,6 +146,8 @@ function normalizeHttpUrl(value: string, field: string): string {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error(`Invalid desktop runtime config: ${field} must use http or https`);
   }
+  requireLoopbackUrl(url.toString(), field);
+  if (url.hostname === "localhost") url.hostname = "127.0.0.1";
   url.search = "";
   url.hash = "";
   return trimTrailingSlash(url.toString());
@@ -164,6 +163,8 @@ function normalizeWsUrl(value: string, field: string): string {
   if (url.protocol !== "ws:" && url.protocol !== "wss:") {
     throw new Error(`Invalid desktop runtime config: ${field} must use ws or wss`);
   }
+  requireLoopbackUrl(url.toString(), field);
+  if (url.hostname === "localhost") url.hostname = "127.0.0.1";
   url.search = "";
   url.hash = "";
   return trimTrailingSlash(url.toString());

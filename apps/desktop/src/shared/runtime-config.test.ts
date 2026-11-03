@@ -1,142 +1,24 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import {
-  deriveWsUrl,
-  parseRuntimeConfig,
-  runtimeConfigFromDevEnv,
-} from "./runtime-config";
+import { DEFAULT_RUNTIME_CONFIG, parseRuntimeConfig, runtimeConfigFromDevEnv } from "./runtime-config";
 
-describe("runtime config", () => {
-  it("derives https/wss compatible URLs from apiUrl", () => {
-    expect(
-      parseRuntimeConfig(
-        JSON.stringify({
-          schemaVersion: 1,
-          apiUrl: "https://congvc-x99.taila6fa8a.ts.net:18443",
-        }),
-      ),
-    ).toEqual({
-      schemaVersion: 1,
-      apiUrl: "https://congvc-x99.taila6fa8a.ts.net:18443",
-      wsUrl: "wss://congvc-x99.taila6fa8a.ts.net:18443/ws",
-      appUrl: "https://congvc-x99.taila6fa8a.ts.net:18443",
+describe("本机运行配置", () => {
+  it("开发和打包默认值均只指向本机", () => {
+    expect(runtimeConfigFromDevEnv({})).toEqual(DEFAULT_RUNTIME_CONFIG);
+    expect(parseRuntimeConfig(JSON.stringify({ schemaVersion: 1, apiUrl: "http://localhost:8080" }))).toEqual(DEFAULT_RUNTIME_CONFIG);
+  });
+  it("允许为本机服务指定其他端口", () => {
+    expect(runtimeConfigFromDevEnv({ apiUrl: "http://localhost:8088/", appUrl: "http://localhost:3008/" })).toEqual({
+      schemaVersion: 1, apiUrl: "http://127.0.0.1:8088", wsUrl: "ws://127.0.0.1:8088/ws", appUrl: "http://127.0.0.1:3008",
     });
   });
-
-  it("strips the leading api. label when deriving appUrl", () => {
-    expect(
-      parseRuntimeConfig(
-        JSON.stringify({ schemaVersion: 1, apiUrl: "https://api.multica.ai" }),
-      ),
-    ).toEqual({
-      schemaVersion: 1,
-      apiUrl: "https://api.multica.ai",
-      wsUrl: "wss://api.multica.ai/ws",
-      appUrl: "https://multica.ai",
-    });
+  it.each(["apiUrl", "wsUrl", "appUrl"])("拒绝配置中的外部地址 %s", (field) => {
+    expect(() => parseRuntimeConfig(JSON.stringify({ ...DEFAULT_RUNTIME_CONFIG, [field]: field === "wsUrl" ? "wss://api.multica.ai/ws" : "https://multica.ai" }))).toThrow(/只能使用本机地址/);
   });
-
-  it("derives ws for http api URLs", () => {
-    expect(deriveWsUrl("http://localhost:8080")).toBe("ws://localhost:8080/ws");
+  it("开发环境变量也不能切回云端", () => {
+    expect(() => runtimeConfigFromDevEnv({ apiUrl: "https://api.multica.ai" })).toThrow(/只能使用本机地址/);
   });
-
-  it("accepts explicit appUrl and wsUrl", () => {
-    expect(
-      parseRuntimeConfig(
-        JSON.stringify({
-          schemaVersion: 1,
-          apiUrl: "https://api.example.com/",
-          wsUrl: "wss://ws.example.com/socket/",
-          appUrl: "https://app.example.com/",
-        }),
-      ),
-    ).toEqual({
-      schemaVersion: 1,
-      apiUrl: "https://api.example.com",
-      wsUrl: "wss://ws.example.com/socket",
-      appUrl: "https://app.example.com",
-    });
-  });
-
-  it("rejects invalid JSON", () => {
-    expect(() => parseRuntimeConfig("{")).toThrow(/Invalid desktop runtime config JSON/);
-  });
-
-  it("rejects unsupported schema versions", () => {
-    expect(() =>
-      parseRuntimeConfig(JSON.stringify({ schemaVersion: 2, apiUrl: "https://api.example.com" })),
-    ).toThrow(/schemaVersion/);
-  });
-
-  it("rejects non-http api schemes", () => {
-    expect(() =>
-      parseRuntimeConfig(JSON.stringify({ schemaVersion: 1, apiUrl: "file:///tmp/multica" })),
-    ).toThrow(/apiUrl must use http or https/);
-  });
-
-  it("rejects non-ws websocket schemes", () => {
-    expect(() =>
-      parseRuntimeConfig(
-        JSON.stringify({
-          schemaVersion: 1,
-          apiUrl: "https://api.example.com",
-          wsUrl: "https://api.example.com/ws",
-        }),
-      ),
-    ).toThrow(/wsUrl must use ws or wss/);
-  });
-
-  it("preserves electron-vite dev env precedence", () => {
-    expect(
-      runtimeConfigFromDevEnv({
-        apiUrl: "http://dev-api.example.test:8080/",
-        wsUrl: "ws://dev-api.example.test:8080/ws/",
-        appUrl: "http://dev-app.example.test:3000/",
-      }),
-    ).toEqual({
-      schemaVersion: 1,
-      apiUrl: "http://dev-api.example.test:8080",
-      wsUrl: "ws://dev-api.example.test:8080/ws",
-      appUrl: "http://dev-app.example.test:3000",
-    });
-  });
-
-  it("falls back to local web URL when dev apiUrl is localhost", () => {
-    expect(runtimeConfigFromDevEnv({ apiUrl: "http://localhost:8080" })).toEqual({
-      schemaVersion: 1,
-      apiUrl: "http://localhost:8080",
-      wsUrl: "ws://localhost:8080/ws",
-      appUrl: "http://localhost:3000",
-    });
-  });
-
-  it("derives dev appUrl by stripping the leading api. label", () => {
-    // When the dev renderer is pointed at a remote backend (e.g. a test
-    // environment), copy-link / share URLs must reflect that environment's
-    // public web host, not the api host. Multica's convention exposes the
-    // api at `api.<web-host>`, so stripping the leading label gives the
-    // right web origin without a separate VITE_APP_URL.
-    expect(
-      runtimeConfigFromDevEnv({ apiUrl: "https://api.test.multica.ai" }),
-    ).toEqual({
-      schemaVersion: 1,
-      apiUrl: "https://api.test.multica.ai",
-      wsUrl: "wss://api.test.multica.ai/ws",
-      appUrl: "https://test.multica.ai",
-    });
-  });
-
-  it("dev VITE_APP_URL still wins over apiUrl-derived value", () => {
-    expect(
-      runtimeConfigFromDevEnv({
-        apiUrl: "https://api.test.multica.ai",
-        appUrl: "https://staging.multica.ai",
-      }),
-    ).toEqual({
-      schemaVersion: 1,
-      apiUrl: "https://api.test.multica.ai",
-      wsUrl: "wss://api.test.multica.ai/ws",
-      appUrl: "https://staging.multica.ai",
-    });
+  it.each(["{", "null", "[]", '{"schemaVersion":2}', '{"schemaVersion":1,"apiUrl":"file:///tmp/x"}'])("拒绝无效配置 %s", (raw) => {
+    expect(() => parseRuntimeConfig(raw)).toThrow();
   });
 });

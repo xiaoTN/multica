@@ -186,7 +186,6 @@
     "@formatjs/intl-localematcher": "catalog:",
     "@tanstack/react-query": "catalog:",
     "i18next": "catalog:",
-    "posthog-js": "catalog:",
     "react-i18next": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:",

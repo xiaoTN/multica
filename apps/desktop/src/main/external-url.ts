@@ -1,10 +1,11 @@
 import { shell, type BrowserWindow } from "electron";
+import { isLoopbackUrl } from "../shared/local-network";
 
 // True when the URL parses and uses http/https — the only schemes we let
 // reach `shell.openExternal`. Scheme comparison is safe because the WHATWG
 // URL parser lowercases the protocol field.
 export function isSafeExternalHttpUrl(url: string): boolean {
-  return getHttpProtocol(url) !== null;
+  return getHttpProtocol(url) !== null && isLoopbackUrl(url);
 }
 
 // Canonical wrapper around shell.openExternal. All renderer-controlled URLs
@@ -12,8 +13,8 @@ export function isSafeExternalHttpUrl(url: string): boolean {
 // to `shell.openExternal` elsewhere in the main process are banned by the
 // no-restricted-syntax rule in apps/desktop/eslint.config.mjs.
 export function openExternalSafely(url: string): Promise<void> | void {
-  if (getHttpProtocol(url) === null) {
-    console.warn(`[security] blocked openExternal: ${describeScheme(url)}`);
+  if (!isSafeExternalHttpUrl(url)) {
+    console.warn(`[本机网络] 已阻止打开外部链接：${describeScheme(url)}`);
     return;
   }
   return shell.openExternal(url);
@@ -25,8 +26,8 @@ export function openExternalSafely(url: string): Promise<void> | void {
 // the no-restricted-syntax rule in apps/desktop/eslint.config.mjs.
 // Reuses the same http/https allowlist as openExternalSafely.
 export function downloadURLSafely(win: BrowserWindow, url: string): void {
-  if (getHttpProtocol(url) === null) {
-    console.warn(`[security] blocked downloadURL: ${describeScheme(url)}`);
+  if (!isSafeExternalHttpUrl(url)) {
+    console.warn(`[本机网络] 已阻止外部下载：${describeScheme(url)}`);
     return;
   }
   win.webContents.downloadURL(url);

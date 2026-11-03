@@ -35,10 +35,6 @@ protocols:
       - multica
 asarUnpack:
   - resources/**
-# Publishes `minimumSystemVersion` (Darwin kernel floor) into latest-mac.yml /
-# latest-x64-mac.yml so installed macOS 12 clients skip updates they cannot
-# launch. See scripts/mac-update-floor.cjs for why this can't be plain config.
-beforePack: ./scripts/mac-update-floor.cjs
 mac:
   # Electron 44 requires macOS 13 Ventura; declare it on every mac bundle.
   minimumSystemVersion: "13.0.0"
@@ -127,14 +123,6 @@ win:
   target:
     - nsis
   artifactName: multica-desktop-${version}-windows-${arch}.${ext}
-publish:
-  provider: github
-  owner: multica-ai
-  repo: multica
-  # Align with our CLI release flow which pre-creates a *published* GitHub
-  # Release via `gh release create`. The electron-builder default of
-  # `releaseType: draft` conflicts with `existingType=release` and causes
-  # uploads of the DMG/ZIP/blockmaps/latest-mac.yml to be silently skipped,
-  # which breaks electron-updater auto-update on installed clients.
-  releaseType: release
+# 本机版本只生成本地文件，不发布到任何远程更新源。
+publish: null
 npmRebuild: false

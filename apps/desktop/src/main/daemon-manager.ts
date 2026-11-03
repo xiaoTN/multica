@@ -22,7 +22,6 @@ import type {
   LocalRuntimeProbe,
 } from "../shared/daemon-types";
 import { daemonStatusAlive } from "../shared/daemon-types";
-import { ensureManagedCli, managedCliPath } from "./cli-bootstrap";
 import { decideVersionAction } from "./version-decision";
 import { createDaemonQuitHandler } from "./daemon-quit";
 import { quitConfirmationOptions, quitFailureOptions } from "./daemon-quit-dialogs";
@@ -445,23 +444,6 @@ async function fetchHealth(): Promise<DaemonStatus> {
   };
 }
 
-function findCliOnPath(): string | null {
-  const candidates = process.platform === "win32" ? ["multica.exe"] : ["multica"];
-  const paths = (process.env["PATH"] ?? "").split(
-    process.platform === "win32" ? ";" : ":",
-  );
-  if (process.platform === "darwin") {
-    paths.push("/opt/homebrew/bin", "/usr/local/bin");
-  }
-  for (const name of candidates) {
-    for (const dir of paths) {
-      const full = join(dir, name);
-      if (existsSync(full)) return full;
-    }
-  }
-  return null;
-}
-
 /**
  * Returns the path to the CLI binary bundled inside the Desktop app.
  *
@@ -510,22 +492,7 @@ async function probeCliBinary(
   }
 }
 
-/**
- * Returns a usable `multica` binary path. Priority:
- *   1. Cached result from a previous successful resolve.
- *   2. Bundled binary shipped with the Desktop app (`bundle-cli.mjs`).
- *   3. Managed binary already installed in userData (`managedCliPath`).
- *   4. Download + install latest release into userData.
- *   5. `multica` on PATH (dev convenience / user-installed via brew).
- * Returns `null` only when all of the above fail.
- *
- * Bundled is preferred so Desktop iterates in lockstep with Go changes in
- * the same repo — avoids the 404 / stale-API problem when the Desktop's
- * TS side is ahead of the last published CLI release.
- *
- * This function is idempotent and safe to call concurrently — in-flight
- * installs are de-duplicated via `cliResolvePromise`.
- */
+// 只使用随本地版本一起构建的 CLI，避免下载或误用其他版本的程序。
 async function resolveCliBinary(): Promise<string | null> {
   if (quitting) return cachedCliBinary ?? null;
   if (cachedCliBinary !== undefined) return cachedCliBinary;
@@ -536,47 +503,10 @@ async function resolveCliBinary(): Promise<string | null> {
     if (existsSync(bundled)) {
       const version = await probeCliBinary(bundled, "bundled");
       if (version) {
-        console.log(`[daemon] using bundled CLI at ${bundled}`);
+        console.log(`[后台程序] 使用随应用构建的 CLI：${bundled}`);
         cachedCliBinary = bundled;
         cachedCliBinaryVersion = version;
         return bundled;
-      }
-    }
-
-    const managed = managedCliPath();
-    if (existsSync(managed)) {
-      const version = await probeCliBinary(managed, "managed");
-      if (version) {
-        cachedCliBinary = managed;
-        cachedCliBinaryVersion = version;
-        return managed;
-      }
-    }
-
-    try {
-      const installed = await ensureManagedCli({
-        forceInstall: existsSync(managed),
-      });
-      const version = await probeCliBinary(installed, "managed");
-      if (version) {
-        cachedCliBinary = installed;
-        cachedCliBinaryVersion = version;
-        return installed;
-      }
-      console.warn(
-        `[daemon] managed CLI at ${installed} failed validation after install`,
-      );
-    } catch (err) {
-      console.warn("[daemon] CLI auto-install failed, falling back to PATH:", err);
-    }
-
-    const onPath = findCliOnPath();
-    if (onPath) {
-      const version = await probeCliBinary(onPath, "path");
-      if (version) {
-        cachedCliBinary = onPath;
-        cachedCliBinaryVersion = version;
-        return onPath;
       }
     }
 

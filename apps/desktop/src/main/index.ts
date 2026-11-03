@@ -7,16 +7,16 @@ import {
   nativeImage,
   Notification,
   screen,
+  session,
 } from "electron";
 import { homedir } from "os";
 import { join } from "path";
 import { pathToFileURL } from "url";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
 import fixPath from "fix-path";
-import { createElectronBusyInstallPrompt, setupAutoUpdater } from "./updater";
+import { setupLocalUpdater } from "./local-updater";
+import { installLocalNetworkPolicy } from "./local-network-policy";
 import {
-  prepareDaemonForUpdateInstall,
-  resumeDaemonAfterAbortedUpdateInstall,
   setupDaemonManager,
 } from "./daemon-manager";
 import { setupLocalDirectory } from "./local-directory";
@@ -91,6 +91,9 @@ import {
 } from "./notification-gate";
 
 configureLinuxFileDialogs(app.commandLine);
+app.commandLine.appendSwitch("disable-background-networking");
+app.commandLine.appendSwitch("disable-component-update");
+app.commandLine.appendSwitch("host-resolver-rules", "MAP localhost 127.0.0.1");
 
 // Guards against registering the will-download handler more than once on the
 // same session. window.webContents.session is shared, and createMainWindow() can
@@ -749,6 +752,7 @@ if (!gotTheLock) {
   if (coldStartDeepLink) handleDeepLink(coldStartDeepLink);
 
   app.whenReady().then(async () => {
+    await installLocalNetworkPolicy(session.defaultSession);
     const viteEnv = import.meta.env as ImportMetaEnv & {
       readonly VITE_API_URL?: string;
       readonly VITE_WS_URL?: string;
@@ -1034,21 +1038,7 @@ if (!gotTheLock) {
       createMainWindow(saved);
     }
 
-    // Register first so the update quit gate can block daemon autoStop.
-    setupAutoUpdater(() => mainWindows.all(), {
-      // Windows only (the updater ignores it elsewhere): stop the bundled
-      // daemon before the installer runs so multica.exe is replaced. #8823
-      daemonGate: {
-        prepare: prepareDaemonForUpdateInstall,
-        resumeAfterAbortedInstall: resumeDaemonAfterAbortedUpdateInstall,
-        confirmInstallWhileBusy: createElectronBusyInstallPrompt((options) => {
-          const parent = mainWindows.mostRecent();
-          return parent && !parent.isDestroyed()
-            ? dialog.showMessageBox(parent, options)
-            : dialog.showMessageBox(options);
-        }),
-      },
-    });
+    setupLocalUpdater();
     setupDaemonManager(
       () => mainWindows.mostRecent(),
       () => mainWindows.all(),

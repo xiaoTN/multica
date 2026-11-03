@@ -10,6 +10,7 @@ import {
   session,
 } from "electron";
 import { homedir } from "os";
+import { existsSync } from "node:fs";
 import { join } from "path";
 import { pathToFileURL } from "url";
 import { electronApp, optimizer, is } from "@electron-toolkit/utils";
@@ -28,7 +29,8 @@ import { installNavigationGestures } from "./navigation-gestures";
 import { installNavigationGuard } from "./navigation-guard";
 import { createRendererWebPreferences } from "./renderer-web-preferences";
 import { getAppVersion } from "./app-version";
-import { loadRuntimeConfig } from "./runtime-config-loader";
+import { desktopConfigPath, loadRuntimeConfig } from "./runtime-config-loader";
+import { ensureLocalRuntime } from "./local-runtime";
 import type { RuntimeConfigResult } from "../shared/runtime-config";
 import {
   RENDERER_ROUTE_CONTEXT_CHANNEL,
@@ -1035,6 +1037,22 @@ if (!gotTheLock) {
       () => mainWindows.all(),
     );
     setupLocalDirectory(() => mainWindows.mostRecent());
+
+    // 默认安装自行准备后台；显式填写的连接配置仍由用户管理，避免切换已有数据。
+    if (!is.dev && runtimeConfigResult.ok && !existsSync(desktopConfigPath())) {
+      const config = runtimeConfigResult.config;
+      const resourcesDir = join(app.getAppPath(), "resources").replace("app.asar", "app.asar.unpacked");
+      void ensureLocalRuntime({
+        apiUrl: config.apiUrl,
+        appUrl: config.appUrl,
+        dataDir: join(app.getPath("userData"), "local-runtime"),
+        resourcesDir,
+      }).catch((error: unknown) => {
+        runtimeConfigResult = { ok: false, error: { message: error instanceof Error ? error.message : "无法启动本机服务" } };
+      }).finally(() => {
+        for (const window of mainWindows.all()) window.webContents.reload();
+      });
+    }
 
     // Registered after the updater and daemon gates, so a quit they hold
     // (busy daemon, pending install) leaves the session writable; only the

@@ -1,17 +1,8 @@
 #!/usr/bin/env node
-// Builds the `multica` CLI from server/cmd/multica and copies the binary
-// into apps/desktop/resources/bin/ so electron-vite (dev) and electron-
-// builder (prod) pick it up. Running this on every dev/build/package
-// invocation guarantees the bundled CLI always matches the current Go
-// source — no more stale binary surprises. Go's build cache makes the
-// no-op case (nothing changed) effectively free.
-//
-// ldflags mirror `make build` so `multica --version` reports a meaningful
-// version / commit / date.
-//
-// 本机版本必须使用当前源码构建的 CLI，缺少 Go 时立即失败，不下载其他版本。
+// 每次构建都从当前 Go 源码生成命令行、后台和数据库初始化程序。
+// 版本信息与 make build 一致，不下载其他版本，也不要求用户在运行时安装 Go。
 
-import { access, chmod, copyFile, mkdir, rm } from "node:fs/promises";
+import { access, chmod, copyFile, cp, mkdir, rm } from "node:fs/promises";
 import { constants } from "node:fs";
 import { execFileSync, execSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
@@ -58,20 +49,13 @@ function normalizeRuntimeArch(arch) {
   );
 }
 
-function binaryNameForPlatform(platform) {
-  return platform === "win32" ? "multica.exe" : "multica";
-}
-
 const targetPlatform = normalizeRuntimePlatform(
   runtimePlatformFromArgs(process.argv.slice(2)),
 );
 const targetArch = normalizeRuntimeArch(runtimeArchFromArgs(process.argv.slice(2)));
 const goos = PLATFORM_TO_GOOS[targetPlatform];
 const goarch = targetArch === "x64" ? "amd64" : targetArch;
-const binName = binaryNameForPlatform(targetPlatform);
-const srcBinary = join(serverDir, "bin", `${goos}-${goarch}`, binName);
 const destDir = join(repoRoot, "apps", "desktop", "resources", "bin");
-const destBinary = join(destDir, binName);
 
 // Hand git arguments straight to the binary (no shell) on every platform.
 function git(...args) {
@@ -100,61 +84,42 @@ async function exists(p) {
   }
 }
 
-if (hasGo()) {
-  const version = deriveVersion() || "dev";
-  const commit = git("rev-parse", "--short", "HEAD") || "unknown";
-  const buildCommit = git("rev-parse", "HEAD") || "unknown";
-  const date = new Date().toISOString().replace(/\.\d+Z$/, "Z");
-  const ldflags = `-X main.version=${version} -X main.commit=${commit} -X main.buildCommit=${buildCommit} -X main.date=${date}`;
-
-  console.log(
-    `[bundle-cli] go build → ${srcBinary} (${goos}/${goarch}, version=${version} commit=${commit})`,
-  );
-  await mkdir(join(serverDir, "bin", `${goos}-${goarch}`), { recursive: true });
-  execFileSync(
-    "go",
-    [
-      "build",
-      "-ldflags",
-      ldflags,
-      "-o",
-      srcBinary,
-      "./cmd/multica",
-    ],
-    {
-      cwd: serverDir,
-      stdio: "inherit",
-      env: {
-        ...process.env,
-        CGO_ENABLED: "0",
-        GOOS: goos,
-        GOARCH: goarch,
-      },
-    },
-  );
-} else {
-  throw new Error("本机版本必须使用 Go 构建配套 CLI，请先准备 Go 工具。");
+if (!hasGo()) {
+  throw new Error("本机版本需要 Go 来构建配套程序，请先准备 Go 工具。");
 }
 
-if (!(await exists(srcBinary))) {
-  throw new Error(`配套 CLI 未生成，已停止打包：${srcBinary}`);
-}
-
+const version = deriveVersion() || "dev";
+const commit = git("rev-parse", "--short", "HEAD") || "unknown";
+const buildCommit = git("rev-parse", "HEAD") || "unknown";
+const date = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+const ldflags = `-X main.version=${version} -X main.commit=${commit} -X main.buildCommit=${buildCommit} -X main.date=${date}`;
 await rm(destDir, { recursive: true, force: true });
 await mkdir(destDir, { recursive: true });
-await copyFile(srcBinary, destBinary);
-await chmod(destBinary, 0o755);
 
-// macOS: ad-hoc sign so Gatekeeper doesn't complain when the parent app
-// (which itself may be unsigned in dev) spawns the child.
-if (process.platform === "darwin") {
-  try {
-    execSync(`codesign -s - --force ${JSON.stringify(destBinary)}`, {
-      stdio: "pipe",
-    });
-  } catch {
-    // Non-fatal. Unsigned binaries still run when the parent app is trusted.
+// 桌面应用同时携带命令行、后台和数据库迁移程序，启动时无需源码或 Go。
+for (const target of [
+  { package: "multica", name: "multica" },
+  { package: "server", name: "agent-team-server" },
+  { package: "migrate", name: "agent-team-migrate" },
+]) {
+  const name = target.name + (targetPlatform === "win32" ? ".exe" : "");
+  const source = join(serverDir, "bin", `${goos}-${goarch}`, name);
+  const destination = join(destDir, name);
+  await mkdir(join(serverDir, "bin", `${goos}-${goarch}`), { recursive: true });
+  console.log(`[构建本机程序] ${target.name}，平台 ${goos}/${goarch}`);
+  execFileSync("go", ["build", "-ldflags", ldflags, "-o", source, `./cmd/${target.package}`], {
+    cwd: serverDir,
+    stdio: "inherit",
+    env: { ...process.env, CGO_ENABLED: "0", GOOS: goos, GOARCH: goarch },
+  });
+  if (!(await exists(source))) throw new Error(`配套程序未生成：${target.name}`);
+  await copyFile(source, destination);
+  await chmod(destination, 0o755);
+  if (process.platform === "darwin") {
+    execFileSync("codesign", ["-s", "-", "--force", destination], { stdio: "pipe" });
   }
 }
-
-console.log(`[bundle-cli] bundled ${srcBinary} → ${destBinary}`);
+const migrationsDir = join(destDir, "..", "migrations");
+await rm(migrationsDir, { recursive: true, force: true });
+await cp(join(serverDir, "migrations"), migrationsDir, { recursive: true });
+console.log("[构建本机程序] 后台、数据库迁移和命令行均已打包");

@@ -321,9 +321,9 @@ function BlockingRuntimeConfigError({ message }: { message: string }) {
   return (
     <div className="flex h-screen items-center justify-center bg-background p-8 text-foreground">
       <div className="max-w-xl rounded-lg border bg-card p-6 shadow-sm">
-        <h1 className="text-title font-semibold">Desktop configuration error</h1>
+        <h1 className="text-title font-semibold">本机服务无法使用</h1>
         <p className="mt-3 text-body text-muted-foreground">
-          Agent团队协作无法读取 <code>~/.multica/desktop.json</code>。请修复或删除该文件，然后重新启动应用。
+          请根据下面的提示处理，然后重新打开应用。
         </p>
         <pre className="mt-4 whitespace-pre-wrap rounded-md bg-muted p-3 text-caption text-muted-foreground">
           {message}

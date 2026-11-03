@@ -152,7 +152,13 @@
     "toast_ref_update_failed": "Impossible de mettre à jour la branche",
     "ref_error_commit": "Ceci est un commit, pas une branche. Les tâches livrent sur la branche depuis laquelle elles démarrent — pour une révision ponctuelle, utilisez multica repo checkout --ref.",
     "ref_default_label": "Branche par défaut",
-    "ref_default_tooltip": "Aucune branche définie — les tâches utilisent la branche par défaut du dépôt au moment voulu."
+    "ref_default_tooltip": "Aucune branche définie — les tâches utilisent la branche par défaut du dépôt au moment voulu.",
+    "web_local_machine": "Ordinateur",
+    "web_local_machine_placeholder": "Choisir un ordinateur",
+    "web_local_no_machine": "Démarrez un runtime local sur l’ordinateur contenant les dépôts.",
+    "web_local_path": "Chemin du dossier",
+    "web_local_path_help": "Saisissez le chemin complet sur l’ordinateur sélectionné. Le runtime vérifie le dossier avant de démarrer la tâche.",
+    "web_local_path_placeholder": "/Users/name/projects/backend"
   },
   "delete_dialog": {
     "title": "Supprimer le projet",

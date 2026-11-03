@@ -152,7 +152,13 @@
     "toast_ref_update_failed": "无法更新分支",
     "ref_error_commit": "这是一个 commit，不是分支。任务会交付回它起始的分支 —— 只需要某次修订，请用 multica repo checkout --ref。",
     "ref_default_label": "默认分支",
-    "ref_default_tooltip": "未设置分支 —— 任务使用仓库当时的默认分支。"
+    "ref_default_tooltip": "未设置分支 —— 任务使用仓库当时的默认分支。",
+    "web_local_machine": "所在电脑",
+    "web_local_machine_placeholder": "选择运行电脑",
+    "web_local_no_machine": "请先在仓库所在电脑上启动本地运行时。",
+    "web_local_path": "目录路径",
+    "web_local_path_help": "填写所选电脑上的完整路径。任务开始前，运行时会检查目录是否可用。",
+    "web_local_path_placeholder": "/Users/name/projects/backend"
   },
   "delete_dialog": {
     "title": "删除项目",

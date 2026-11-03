@@ -13,10 +13,10 @@
  */
 
 /** Root fallback — the title of a page that has nothing more specific to say. */
-export const SITE_TITLE = "Multica — Project Management for Human + Agent Teams";
+export const SITE_TITLE = "Agent团队协作";
 
 /** Appended to every page-specific title. */
-export const TITLE_SUFFIX = " | Multica";
+export const TITLE_SUFFIX = " | Agent团队协作";
 
 /** Next.js `metadata.title.template`; see apps/web/app/layout.tsx. */
 export const TITLE_TEMPLATE = `%s${TITLE_SUFFIX}`;

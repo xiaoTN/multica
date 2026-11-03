@@ -628,8 +628,7 @@ start_web() {
   die "web never came up. Log: $(log_file web)"
 }
 
-# send-code once, verify-code once. Repeated verify attempts lock the code out
-# and start returning 400 even when it is correct, so retrying is self-defeating.
+# 本机身份自动准备，不再使用验证码登录。
 write_profile_config() {
   local config=$1 pat=$2 ws=$3
   mkdir -p "$PROFILE_DIR"
@@ -647,7 +646,6 @@ EOF
 
 ensure_credentials() {
   local server="http://localhost:${BACKEND_PORT}" config="$PROFILE_DIR/config.json"
-  local code="${MULTICA_DEV_VERIFICATION_CODE:-$DEV_CODE_DEFAULT}"
   local verify jwt pat ws
 
   if [ -f "$config" ]; then
@@ -656,52 +654,23 @@ ensure_credentials() {
     if [ -n "$pat" ] && curl -sf --max-time 5 "$server/api/me" -H "Authorization: Bearer $pat" >/dev/null 2>&1; then
       WORKSPACE_ID="$ws"
       write_profile_config "$config" "$pat" "$ws"
-      ok "CLI profile $PROFILE already authenticated"
+      ok "CLI 配置 $PROFILE 的本机会话可用"
       return 0
     fi
   fi
 
-  curl -sf -X POST "$server/auth/send-code" -H 'Content-Type: application/json' \
-    -d "{\"email\":\"${DEV_EMAIL}\"}" >/dev/null \
-    || die "send-code failed. Is MULTICA_DEV_VERIFICATION_CODE set and APP_ENV non-production?"
-
-  verify="$(curl -sS -X POST "$server/auth/verify-code" -H 'Content-Type: application/json' \
-    -d "{\"email\":\"${DEV_EMAIL}\",\"code\":\"${code}\"}")"
+  # 本机版本自动准备身份，开发环境也不再发送或输入登录验证码。
+  verify="$(curl -sf -X POST "$server/auth/local")" || die "本机身份初始化失败，请检查后台服务。"
   jwt="$(json_field "$verify" token || true)"
-  [ -n "$jwt" ] || die "verify-code failed: $verify
-Do not retry immediately — repeated attempts lock the code. Wait ~40s and re-run."
-
-  local pat_response
-  pat_response="$(curl -sS -X POST "$server/api/tokens" -H "Authorization: Bearer $jwt" \
-    -H 'Content-Type: application/json' -d '{"name":"dev-env","expires_in_days":365}')"
-  pat="$(json_field "$pat_response" token || true)"
-  [ -n "$pat" ] || die "Personal access token creation failed: $pat_response"
-
-  local ws_response
-  ws_response="$(curl -sS -X POST "$server/api/workspaces" -H "Authorization: Bearer $pat" \
-    -H 'Content-Type: application/json' \
-    -d "{\"name\":\"${WORKSPACE_NAME}\",\"slug\":\"${WORKSPACE_SLUG}\"}")"
-  ws="$(json_field "$ws_response" id || true)"
-  if [ -z "$ws" ]; then
-    ws="$(node -e '
-      let list;
-      try { list = JSON.parse(process.argv[1]); } catch { process.exit(1); }
-      const match = (Array.isArray(list) ? list : []).find(w => w.slug === process.argv[2]);
-      if (!match) process.exit(1);
-      process.stdout.write(match.id);
-    ' "$(curl -sS "$server/api/workspaces" -H "Authorization: Bearer $pat")" "$WORKSPACE_SLUG" 2>/dev/null || true)"
-  fi
-  [ -n "$ws" ] || die "Workspace creation failed: $ws_response"
-
-  # A fresh user has onboarded_at = NULL and a browser login is bounced to
-  # /onboarding, so the URL this script prints would not land in the app.
-  curl -sS -X POST "$server/api/me/onboarding/complete" \
-    -H "Authorization: Bearer $pat" -H "X-Workspace-ID: $ws" \
-    -H 'Content-Type: application/json' -d '{"exit":"existing"}' >/dev/null 2>&1 || true
-
-  write_profile_config "$config" "$pat" "$ws"
+  [ -n "$jwt" ] || die "本机身份接口没有返回会话，请检查后台日志。"
+  local workspaces
+  workspaces="$(curl -sf "$server/api/workspaces" -H "Authorization: Bearer $jwt")" || die "读取本地工作区失败。"
+  ws="$(node -e 'const list=JSON.parse(process.argv[1]); if(!list[0]?.id) process.exit(1); process.stdout.write(list[0].id)' "$workspaces")" || die "没有可用的本地工作区。"
+  WORKSPACE_SLUG="$(node -e 'process.stdout.write(JSON.parse(process.argv[1])[0].slug)' "$workspaces")"
+  write_profile_config "$config" "$jwt" "$ws"
   WORKSPACE_ID="$ws"
-  ok "Logged in as $DEV_EMAIL and wrote profile $PROFILE"
+  ok "本机身份和 CLI 配置 $PROFILE 已准备好"
+
 }
 
 # The CLI refuses `daemon start` anywhere under a daemon-task marker, so a task

@@ -62,6 +62,7 @@ function LoginPageContent() {
   const { t } = useT("auth");
   const googleClientId = useConfigStore((state) => state.googleClientId);
   const user = useAuthStore((s) => s.user);
+  const localSession = useAuthStore((s) => s.localSession);
   const isLoading = useAuthStore((s) => s.isLoading);
   const searchParams = useSearchParams();
 
@@ -213,6 +214,11 @@ function LoginPageContent() {
         </Card>
       </div>
     );
+  }
+
+  // 本机版本自动进入工作区，启动时也不显示邮箱或第三方登录表单。
+  if (localSession) {
+    return <main className="flex h-dvh items-center justify-center"><Loader2 role="status" aria-label={t(($) => $.desktop.recovery.title)} className="size-6 animate-spin text-muted-foreground" /></main>;
   }
 
   return (

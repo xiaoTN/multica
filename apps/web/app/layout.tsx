@@ -102,7 +102,7 @@ export const metadata: Metadata = {
   // manifest's `display` instead (honoured since iOS 16.4).
   appleWebApp: {
     capable: true,
-    title: "Multica",
+    title: "Agent团队协作",
     // `default` keeps the web view below the status bar. Going edge-to-edge
     // (`black-translucent` + viewport-fit=cover) needs env(safe-area-inset-*)
     // padding, which no surface in the app has yet.
@@ -110,7 +110,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: "website",
-    siteName: "Multica",
+    siteName: "Agent团队协作",
     locale: "en_US",
   },
   twitter: {

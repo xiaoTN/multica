@@ -14,21 +14,6 @@ import {
 import { detectWebOS } from "@/platform/client-os";
 import { useUserLocaleSyncEnabled } from "@/platform/user-locale-sync";
 
-// Legacy token in localStorage → keep this session in token mode so users who
-// logged in before the cookie-auth migration stay authed. They migrate to
-// cookie mode on their next logout/login cycle (logout clears multica_token).
-// Sunset: once telemetry shows <1% of sessions still carry multica_token,
-// delete this branch and hard-code `cookieAuth` — the localStorage token is
-// XSS-exposed and is the exact thing the cookie migration exists to remove.
-function hasLegacyToken(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return Boolean(window.localStorage.getItem("multica_token"));
-  } catch {
-    return false;
-  }
-}
-
 // Derive WebSocket URL from the page origin so self-hosted / LAN deployments
 // work without an explicit runtime wsUrl. The Next.js runtime proxy handles
 // /ws -> backend when the deployment keeps WebSockets same-origin.
@@ -57,7 +42,8 @@ export function WebProviders({
   apiBaseUrl?: string;
   wsUrl?: string;
 }) {
-  const cookieAuth = !hasLegacyToken();
+  // 本机网页与桌面端一样，自动准备本地身份。
+  const cookieAuth = false;
   const syncUserLocale = useUserLocaleSyncEnabled();
   // Stable identity reference so downstream effects keyed on it don't see a
   // new object on every parent render.
@@ -71,6 +57,7 @@ export function WebProviders({
       apiBaseUrl={apiBaseUrl}
       wsUrl={wsUrl || deriveWsUrl()}
       cookieAuth={cookieAuth}
+      localSession
       onLogin={setLoggedInCookie}
       onLogout={clearLoggedInCookie}
       identity={identity}

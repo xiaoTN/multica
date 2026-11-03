@@ -152,7 +152,13 @@
     "toast_ref_update_failed": "브랜치를 업데이트하지 못했습니다",
     "ref_error_commit": "이것은 브랜치가 아니라 커밋입니다. 작업은 시작한 브랜치로 결과를 전달합니다. 일회성 리비전이 필요하면 multica repo checkout --ref를 사용하세요.",
     "ref_default_label": "기본 브랜치",
-    "ref_default_tooltip": "브랜치가 설정되지 않음 — 작업은 그 시점의 저장소 기본 브랜치를 사용합니다."
+    "ref_default_tooltip": "브랜치가 설정되지 않음 — 작업은 그 시점의 저장소 기본 브랜치를 사용합니다.",
+    "web_local_machine": "컴퓨터",
+    "web_local_machine_placeholder": "실행할 컴퓨터 선택",
+    "web_local_no_machine": "저장소가 있는 컴퓨터에서 로컬 런타임을 시작하세요.",
+    "web_local_path": "디렉터리 경로",
+    "web_local_path_help": "선택한 컴퓨터의 전체 경로를 입력하세요. 작업을 시작하기 전에 런타임이 디렉터리를 확인합니다.",
+    "web_local_path_placeholder": "/Users/name/projects/backend"
   },
   "delete_dialog": {
     "title": "프로젝트 삭제",

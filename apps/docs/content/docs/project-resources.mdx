@@ -73,6 +73,8 @@ Preselection applies only to a directory you are linking now. A directory linked
 
 The directory must be an absolute path, must already exist, and must be readable and writable by the current daemon. These paths are rejected: system roots and drive roots (`/`, `C:\`), home directories themselves and the parents of home directories (such as `/Users`, `/home`, `/root`), and system directories such as `/etc`, `/var`, `/tmp`, `/usr`, and `/opt`. If the chosen path is a symlink, it is resolved to its real path first and validated again by the same rules; the serial lock also applies to the real path.
 
+On the web, choose the runtime computer and enter an absolute directory path in project resources. Desktop also supports the native folder picker. The runtime validates each directory before starting a task.
+
 Each project can link multiple local directories per daemon. Attach the frontend, backend, and shared-library checkouts separately to let one agent work across them in the same task. Different computers still use their own daemon-bound directories.
 
 The first matching resource is the starting directory. The runtime brief lists the actual paths for every attached local repository. Each resource keeps its execution mode: `in_place` edits the original directory, while `worktree` edits an isolated checkout and delivers a branch in that repository. Run Git commands and create commits separately in each repository.

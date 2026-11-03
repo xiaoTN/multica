@@ -59,6 +59,7 @@ import {
 } from "./local-directory-mode-dialog";
 import { GithubRefDialog } from "./github-ref-dialog";
 import { GithubRefField, githubRefHasError } from "./github-ref-field";
+import { WebLocalDirectoryDialog } from "./web-local-directory-dialog";
 import { localDirectoryLabel } from "./local-directory-label";
 import { useT } from "../../i18n";
 import { githubShortLabel } from "../../common/github-url";
@@ -119,6 +120,7 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
   const [addOpen, setAddOpen] = useState(false);
   const [repoSearch, setRepoSearch] = useState("");
   const [picking, setPicking] = useState(false);
+  const [webDirectoryOpen, setWebDirectoryOpen] = useState(false);
   const [modeDialog, setModeDialog] = useState<ModeDialogState | null>(null);
   const [modeSaving, setModeSaving] = useState(false);
   const [modeError, setModeError] = useState<string | null>(null);
@@ -132,10 +134,7 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
   const createResource = useCreateProjectResource(wsId, projectId);
   const updateResource = useUpdateProjectResource(wsId, projectId);
 
-  // Desktop-only entry points. We hide (not just disable) on web so users
-  // there don't see an action they can never complete — the spec calls for
-  // read-only on web because the daemon-id check can't be performed in the
-  // browser.
+  // 桌面端用文件选择器，网页端手动填写运行机器上的目录。
   const desktopMode = isDesktopShell();
   const localDaemonId = daemonStatus.daemonId;
 
@@ -496,32 +495,31 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
               />
             </PopoverContent>
           </Popover>
-          {desktopMode && (
-            <div className="flex flex-col">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 justify-start px-2 text-caption text-muted-foreground hover:text-foreground"
-                disabled={
-                  picking ||
-                  createResource.isPending ||
-                  !daemonStatus.running
-                }
-                onClick={() => {
-                  void handleAttachLocalDirectory();
-                }}
-              >
-                <FolderOpen className="size-3" />
-                {t(($) => $.resources.add_local_directory_button)}
-              </Button>
-              {!daemonStatus.running && (
-                <p className="px-2 pt-0.5 text-micro text-muted-foreground">
-                  {t(($) => $.resources.local_daemon_offline_hint)}
-                </p>
-              )}
+          <div className="flex flex-col">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 justify-start px-2 text-caption text-muted-foreground hover:text-foreground"
+              disabled={
+                picking ||
+                createResource.isPending ||
+                (desktopMode && !daemonStatus.running)
+              }
+              onClick={() => {
+                if (desktopMode) void handleAttachLocalDirectory();
+                else setWebDirectoryOpen(true);
+              }}
+            >
+              <FolderOpen className="size-3" />
+              {t(($) => $.resources.add_local_directory_button)}
+            </Button>
+            {desktopMode && !daemonStatus.running && (
+              <p className="px-2 pt-0.5 text-micro text-muted-foreground">
+                {t(($) => $.resources.local_daemon_offline_hint)}
+              </p>
+            )}
 
-            </div>
-          )}
+          </div>
         </div>
       )}
       {refDialog && (
@@ -538,6 +536,17 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
           errorMessage={refError ?? undefined}
           saving={refSaving}
           onConfirm={(next) => void handleSaveRef(next)}
+        />
+      )}
+      {webDirectoryOpen && (
+        <WebLocalDirectoryDialog
+          runtimes={runtimes}
+          worktreeSupported={serverValidatesWorktree}
+          onClose={() => setWebDirectoryOpen(false)}
+          onCreate={async (ref) => {
+            await createResource.mutateAsync({ resource_type: "local_directory", resource_ref: ref });
+            toast.success(t(($) => $.resources.toast_local_attached));
+          }}
         />
       )}
       {modeDialog && (
@@ -910,7 +919,7 @@ function CustomRepoForm({
     }
   };
   return (
-    <form onSubmit={handle} className="space-y-1.5 pt-1 border-t">
+    <form noValidate onSubmit={handle} className="space-y-1.5 pt-1 border-t">
       <div className="flex items-center gap-1.5">
         <input
           type="text"

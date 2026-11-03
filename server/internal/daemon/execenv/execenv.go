@@ -80,7 +80,8 @@ type PrepareParams struct {
 	// output/, logs/, and .gc_meta.json; only the workdir slot is
 	// substituted. Used by the local_directory project_resource flow
 	// (MUL-2663). When set, the envRoot/workdir directory is not created.
-	LocalWorkDir string
+	LocalWorkDir     string
+	LocalDirectories []LocalDirectoryForEnv // 项目绑定的全部本地仓库，按资源顺序排列。
 	// LocalWorktree, when non-nil, is the worktree-mode counterpart of
 	// LocalWorkDir: instead of running in the user's directory, the task gets
 	// its own git worktree of that repo inside envRoot and delivers its work
@@ -161,6 +162,7 @@ type TaskContextForEnv struct {
 	ProjectTitle                  string                  // human-readable project title
 	ProjectDescription            string                  // durable project-level context, rendered into the brief's Project Context section
 	ProjectResources              []ProjectResourceForEnv // resources attached to the project
+	LocalDirectories              []LocalDirectoryForEnv  // 本次任务实际使用的仓库路径。
 	ChatSessionID                 string                  // non-empty for chat tasks
 	// ChatChannelType is the IM platform behind a chat session ("slack",
 	// "feishu", "wecom"); empty for a web/mobile chat. It names the surface in
@@ -300,7 +302,9 @@ type Environment struct {
 	// local_directory resource. The daemon calls Finalize on it after the
 	// agent exits to commit leftovers, drop the worktree, and learn the
 	// branch name to report as the task's result.
-	LocalWorktree *LocalWorktree
+	LocalWorktree            *LocalWorktree
+	LocalDirectories         []LocalDirectoryForEnv
+	AdditionalLocalWorktrees []*LocalWorktree
 	// CodexHome is the path to the per-task CODEX_HOME directory (set only for codex provider).
 	CodexHome string
 	// ClaudeSettingsPath is a task-local --settings JSON file that applies
@@ -580,6 +584,18 @@ func Prepare(params PrepareParams, logger *slog.Logger) (*Environment, error) {
 	// and avoids a conditional that would silently disable cleanup if the
 	// local_directory detection logic ever drifts.
 	manifest := &sidecarManifest{}
+
+	if err := prepareAdditionalLocalDirectories(params, env, logger); err != nil {
+		return nil, err
+	}
+	defer func() {
+		if !prepareSucceeded {
+			for _, worktree := range env.AdditionalLocalWorktrees {
+				worktree.Discard(logger)
+			}
+		}
+	}()
+	params.Task.LocalDirectories = env.LocalDirectories
 
 	// Arm the rollback BEFORE the first write, not after writeContextFiles
 	// returns. writeContextFiles puts the daemon task marker down as its very

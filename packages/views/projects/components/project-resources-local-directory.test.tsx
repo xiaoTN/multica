@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithI18n } from "../../test/i18n";
 import en from "../../locales/en/projects.json";
+
+const { createResource } = vi.hoisted(() => ({ createResource: vi.fn().mockResolvedValue({}) }));
 
 const RESOURCE = {
   id: "res-1",
@@ -35,7 +37,7 @@ vi.mock("@tanstack/react-query", () => ({
 
 vi.mock("@multica/core/projects", () => ({
   projectResourcesOptions: () => ({ queryKey: ["project-resources"], queryFn: vi.fn() }),
-  useCreateProjectResource: () => ({ mutateAsync: vi.fn() }),
+  useCreateProjectResource: () => ({ mutateAsync: createResource }),
   useUpdateProjectResource: () => ({ mutateAsync: vi.fn() }),
   useDeleteProjectResource: () => ({ mutateAsync: vi.fn() }),
 }));
@@ -63,11 +65,30 @@ vi.mock("../../platform/use-local-daemon-status", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+import { pickDirectory, validateLocalDirectory } from "../../platform/local-directory";
+
 import { ProjectResourcesSection } from "./project-resources-section";
 
 const strings = en.resources;
 
 describe("ProjectResourcesSection — local directory row", () => {
+  it("已有一个本地仓库时还能继续添加另一个仓库", async () => {
+    vi.mocked(pickDirectory).mockResolvedValue({ ok: true, path: "/work/backend", basename: "backend" });
+    vi.mocked(validateLocalDirectory).mockResolvedValue({ ok: true, is_git_repo: true });
+    renderWithI18n(<ProjectResourcesSection projectId="p1" />);
+    const add = screen.getByRole("button", { name: strings.add_local_directory_button });
+    expect(add).toBeEnabled();
+    fireEvent.click(add);
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    expect(screen.getByText("/work/backend")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: strings.mode_add }));
+    await waitFor(() => expect(createResource).toHaveBeenCalledWith({
+      resource_type: "local_directory",
+      resource_ref: { local_path: "/work/backend", daemon_id: "daemon-1", label: "backend", execution_mode: "worktree" },
+    }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
   // The read-order matrix lives in local-directory-label.test.ts; this pins
   // the row to that helper so a label set through the API is what people see.
   it("names the row from the top-level label, not the copy inside the ref", () => {

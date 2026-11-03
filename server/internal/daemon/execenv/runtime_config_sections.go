@@ -1,6 +1,7 @@
 package execenv
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -469,6 +470,14 @@ func writeProjectContext(b *strings.Builder, ctx TaskContextForEnv) {
 		b.WriteString("Project description — durable context the project owner set for work in this project:\n\n")
 		b.WriteString(desc)
 		b.WriteString("\n\n")
+	}
+	if len(ctx.LocalDirectories) > 0 {
+		b.WriteString("本次任务可一起处理以下本地仓库。第一个目录是启动目录；进入其他仓库时使用对应绝对路径。\n\n")
+		for _, directory := range ctx.LocalDirectories {
+			encoded, _ := json.Marshal(directory.Path)
+			fmt.Fprintf(b, "- %s: %s（%s）\n", directory.Label, encoded, directory.ExecutionMode)
+		}
+		b.WriteString("\n分别读取每个仓库的 AGENTS.md 等约定。Git 命令要在对应仓库执行，分别提交并汇报各仓库的改动和分支。隔离分支模式只修改上面列出的任务目录，不要修改资源清单里的原目录。\n\n")
 	}
 	if len(ctx.ProjectResources) > 0 {
 		b.WriteString("Project resources (also written to `.multica/project/resources.json`):\n\n")

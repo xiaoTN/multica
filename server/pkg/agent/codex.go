@@ -384,6 +384,11 @@ func buildCodexArgs(opts ExecOptions, logger *slog.Logger) []string {
 	if opts.ServiceTier == codexFastServiceTier {
 		launchArgs = enforceCodexFastMode(launchArgs, logger)
 	}
+	if len(opts.AdditionalDirs) > 0 {
+		// 只扩展到本次任务绑定的仓库，保留用户选择的沙箱模式。
+		roots, _ := json.Marshal(append([]string{opts.Cwd}, opts.AdditionalDirs...))
+		launchArgs = append(launchArgs, "-c", "sandbox_workspace_write.writable_roots="+string(roots))
+	}
 	return append(args, launchArgs...)
 }
 

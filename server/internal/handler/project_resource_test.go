@@ -1060,12 +1060,7 @@ func TestProjectResourceLabelConvergence(t *testing.T) {
 	}
 }
 
-// TestProjectResourceLocalDirectoryDaemonScopedConflict pins the project-level
-// conflict check for local_directory: one row per daemon per project. The
-// daemon-side resolver picks the first match by daemon_id, so silently
-// allowing two rows on the same daemon — even at distinct paths — would let
-// the agent write into whichever sorts first. The DB UNIQUE constraint only
-// catches identical ref JSON; this check covers the broader invariant.
+// 同一运行机器可绑定多个不同目录，创建和更新都要拒绝重复目录。
 func TestProjectResourceLocalDirectoryDaemonScopedConflict(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := newRequest("POST", "/api/projects?workspace_id="+testWorkspaceID, map[string]any{
@@ -1128,9 +1123,7 @@ func TestProjectResourceLocalDirectoryDaemonScopedConflict(t *testing.T) {
 		t.Errorf("same daemon same path create: expected 409, got %d: %s", w.Code, w.Body.String())
 	}
 
-	// A second row on the same daemon at a DIFFERENT path must also 409 —
-	// the daemon-scoped invariant rejects more than one local_directory
-	// per (project, daemon), even if the paths differ.
+	// 同一运行机器添加另一个独立目录应成功。
 	w = httptest.NewRecorder()
 	req = newRequest("POST", "/api/projects/"+project.ID+"/resources", map[string]any{
 		"resource_type": "local_directory",
@@ -1142,12 +1135,11 @@ func TestProjectResourceLocalDirectoryDaemonScopedConflict(t *testing.T) {
 	})
 	req = withURLParam(req, "id", project.ID)
 	testHandler.CreateProjectResource(w, req)
-	if w.Code != http.StatusConflict {
-		t.Errorf("same daemon different path create: expected 409, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusCreated {
+		t.Errorf("same daemon different path create: expected 201, got %d: %s", w.Code, w.Body.String())
 	}
 
-	// Adding the same path on a DIFFERENT daemon is allowed — each daemon
-	// gets to register exactly one local_directory.
+	// 不同运行机器可以分别绑定相同路径，它们属于各自的文件系统。
 	w = httptest.NewRecorder()
 	req = newRequest("POST", "/api/projects/"+project.ID+"/resources", map[string]any{
 		"resource_type": "local_directory",
@@ -1200,11 +1192,7 @@ func TestProjectResourceLocalDirectoryDaemonScopedConflict(t *testing.T) {
 	}
 }
 
-// TestCreateProjectBundledLocalDirectoryDaemonConflict pins the second leg of
-// the daemon-scoped invariant: a single POST /api/projects that bundles two
-// local_directory resources on the same daemon — same path, same daemon
-// with different labels, or different paths on the same daemon — must
-// reject with 400 before any DB work.
+// 批量创建项目也允许多个独立目录，但拒绝同一目录重复出现。
 func TestCreateProjectBundledLocalDirectoryDaemonConflict(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := newRequest("POST", "/api/projects?workspace_id="+testWorkspaceID, map[string]any{
@@ -1252,9 +1240,7 @@ func TestCreateProjectBundledLocalDirectoryDaemonConflict(t *testing.T) {
 		}
 	}
 
-	// Two distinct paths on the same daemon must ALSO 400 — the invariant
-	// is "one local_directory per (project, daemon)", not "one per (project,
-	// daemon, path)".
+	// 批量绑定同一运行机器的两个独立目录应成功。
 	w = httptest.NewRecorder()
 	req = newRequest("POST", "/api/projects?workspace_id="+testWorkspaceID, map[string]any{
 		"title": "Bundled distinct paths same daemon",
@@ -1278,9 +1264,18 @@ func TestCreateProjectBundledLocalDirectoryDaemonConflict(t *testing.T) {
 		},
 	})
 	testHandler.CreateProject(w, req)
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("distinct-paths same daemon bundle: expected 400, got %d: %s", w.Code, w.Body.String())
+	if w.Code != http.StatusCreated {
+		t.Fatalf("distinct-paths same daemon bundle: expected 201, got %d: %s", w.Code, w.Body.String())
 	}
+
+	var multiProject ProjectResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &multiProject); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		r := withURLParam(newRequest("DELETE", "/api/projects/"+multiProject.ID, nil), "id", multiProject.ID)
+		testHandler.DeleteProject(httptest.NewRecorder(), r)
+	}()
 
 	// A bundle with one row per daemon is allowed — each daemon owns its
 	// own local_directory.

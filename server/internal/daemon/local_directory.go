@@ -45,9 +45,18 @@ type localDirectoryRef struct {
 // absolute path; the path mutex keys on it so two different routes to the
 // same directory are serialised.
 type localDirectoryAssignment struct {
-	Ref      localDirectoryRef
-	AbsPath  string // user-provided path, cleaned but not symlink-resolved
-	RealPath string // canonical key for the path mutex
+	Ref        localDirectoryRef
+	AbsPath    string                      // 用户提供的绝对路径。
+	RealPath   string                      // 真实路径，用作目录锁的键。
+	Additional []*localDirectoryAssignment // 同一任务需要一起访问的其他本地仓库。
+}
+
+// Directories 按项目资源顺序返回所有目录，第一个目录作为任务启动目录。
+func (a *localDirectoryAssignment) Directories() []*localDirectoryAssignment {
+	if a == nil {
+		return nil
+	}
+	return append([]*localDirectoryAssignment{a}, a.Additional...)
 }
 
 // UsesWorktree reports whether this assignment runs each task in its own git
@@ -152,19 +161,8 @@ func localDirectoryLockExempt(task Task) bool {
 	return task.ChatSessionID != ""
 }
 
-// findLocalDirectoryAssignment scans the task's project resources for one of
-// type local_directory whose daemon_id matches this daemon. Returns nil
-// (without error) when no such resource exists — the task takes the regular
-// github_repo / worktree code path. Returns an error only when the matching
-// resource is structurally broken (bad JSON, missing fields) OR when more
-// than one resource is pinned to this daemon — that's a server-side
-// invariant violation, and silently picking the first match would let the
-// agent write into an arbitrary directory the user didn't intend.
-//
-// Server-side `findLocalDirectoryConflict` enforces a single local_directory
-// per (project, daemon), so two matches here means either the constraint
-// was bypassed (older API client) or the data was corrupted. Either way,
-// fail fast rather than guess.
+// findLocalDirectoryAssignment 收集当前运行机器关联的全部目录，保留项目资源顺序。
+// 同一真实目录重复出现时直接报错，避免重复加锁和重复写入。
 func findLocalDirectoryAssignment(resources []ProjectResourceData, daemonID string) (*localDirectoryAssignment, error) {
 	var match *localDirectoryAssignment
 	for _, r := range resources {
@@ -180,21 +178,8 @@ func findLocalDirectoryAssignment(resources []ProjectResourceData, daemonID stri
 			return nil, errors.New("local_directory: resource_ref missing daemon_id")
 		}
 		if ref.DaemonID != daemonID {
-			// A different daemon owns this resource. Skip silently; the
-			// project may have multiple local_directory resources, one
-			// per daemon, and other daemons will resolve their own row.
+			// 只处理绑定到本机的目录，其他机器分别使用自己的目录。
 			continue
-		}
-		if match != nil {
-			// Server-side invariant: at most one local_directory per
-			// (project, daemon). Two matches here means the constraint
-			// was bypassed by an older API client or by direct DB writes.
-			// Either way, refuse to guess which directory the user meant.
-			return nil, fmt.Errorf(
-				"local_directory: project has multiple local_directory resources for this daemon (%q and %q); remove the extra in project settings",
-				match.AbsPath,
-				strings.TrimSpace(ref.LocalPath),
-			)
 		}
 		absPath, err := normalizeLocalPath(ref.LocalPath)
 		if err != nil {
@@ -204,10 +189,20 @@ func findLocalDirectoryAssignment(resources []ProjectResourceData, daemonID stri
 		if err != nil {
 			return nil, err
 		}
-		match = &localDirectoryAssignment{
+		assignment := &localDirectoryAssignment{
 			Ref:      ref,
 			AbsPath:  absPath,
 			RealPath: realPath,
+		}
+		for _, existing := range match.Directories() {
+			if existing.RealPath == realPath {
+				return nil, fmt.Errorf("本地目录重复绑定：%s", absPath)
+			}
+		}
+		if match == nil {
+			match = assignment
+		} else {
+			match.Additional = append(match.Additional, assignment)
 		}
 	}
 	return match, nil

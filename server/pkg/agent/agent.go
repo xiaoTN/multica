@@ -28,6 +28,7 @@ type ExecOptions struct {
 	// capability handshake enabled additional messages.
 	EnableTaskSupplement bool
 	Cwd                  string
+	AdditionalDirs       []string // 本次任务需要一起读写的其他仓库目录。
 	Model                string
 	// PiSkillPaths contains only the SKILL.md files written for this task by
 	// the daemon. Pi loads them explicitly without trusting other project files.

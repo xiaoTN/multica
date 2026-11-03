@@ -580,7 +580,7 @@ func (h *Handler) CreateProjectResource(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "failed to check existing resources")
 		return
 	} else if conflict {
-		writeError(w, http.StatusConflict, "this daemon already has a local_directory attached to the project; remove it before adding another")
+		writeError(w, http.StatusConflict, "此目录已关联到项目，请选择其他目录")
 		return
 	}
 
@@ -705,7 +705,7 @@ func (h *Handler) UpdateProjectResource(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "failed to check existing resources")
 		return
 	} else if conflict {
-		writeError(w, http.StatusConflict, "another local_directory on this daemon is already attached to the project")
+		writeError(w, http.StatusConflict, "此目录已关联到项目，请选择其他目录")
 		return
 	}
 
@@ -839,24 +839,8 @@ func (h *Handler) UpdateProjectResource(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// findLocalDirectoryConflict enforces "at most one local_directory resource
-// per (project, daemon)". The daemon picks the first matching daemon_id row
-// out of a task's resources (findLocalDirectoryAssignment), so letting a
-// project carry two rows for the same daemon would mean the agent silently
-// writes into whichever happens to come back first — a safety hazard for a
-// feature that operates directly on the user's real working directory.
-//
-// The DB-level UNIQUE(project_id, resource_type, resource_ref) constraint
-// alone is not enough here: it only fires on full ref-JSON equality, so a
-// different local_path or even a typoed label on the same daemon would slip
-// through. We do the daemon-scoped check here in application code instead.
-//
-// `excludeID` lets the update path ignore the row being edited.
-//
-// Like requireWorktreeCapableDaemon, the read goes through the passed queries
-// so the update path can run it on its transaction: a handler-level read while
-// the transaction holds the row lock would borrow a second pooled connection
-// per locked request.
+// findLocalDirectoryConflict 防止同一项目在同一运行机器上重复绑定同一个目录。
+// excludeID 用来排除正在编辑的资源；查询沿用调用方的事务。
 func findLocalDirectoryConflict(ctx context.Context, q *db.Queries, projectID pgtype.UUID, resourceType string, normalizedRef json.RawMessage, excludeID pgtype.UUID) (bool, error) {
 	if resourceType != "local_directory" {
 		return false, nil
@@ -880,11 +864,8 @@ func findLocalDirectoryConflict(ctx context.Context, q *db.Queries, projectID pg
 		if err := json.Unmarshal(row.ResourceRef, &existing); err != nil {
 			continue
 		}
-		// Daemon-scoped uniqueness: one local_directory per daemon per
-		// project. Different daemons can each carry one row (one per
-		// user device); the daemon-side resolver routes each daemon to
-		// its own assignment by daemon_id.
-		if existing.DaemonID == incoming.DaemonID {
+		// 不同目录可以一起参与任务，标签和执行方式不改变目录身份。
+		if existing.DaemonID == incoming.DaemonID && existing.LocalPath == incoming.LocalPath {
 			return true, nil
 		}
 	}

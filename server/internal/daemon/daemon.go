@@ -5754,6 +5754,7 @@ func (d *Daemon) handleTask(ctx context.Context, task Task, slot int) {
 	// fires only after execenv.Prepare/Reuse has put env.WorkDir on disk,
 	// so consumers that read status==running can resolve the workdir path
 	// without racing the daemon's os.MkdirAll.
+	task.localDirectoryLease = &localDirectoryTaskLease{}
 	localRelease, abort := d.acquireLocalDirectoryLockIfNeeded(ctx, task, taskLog)
 	if abort {
 		return
@@ -6092,68 +6093,82 @@ func withoutWorktreePreserved(err error) error {
 	return errors.Join(rest...)
 }
 
-// acquireLocalDirectoryLockIfNeeded inspects the task's project resources for
-// a local_directory pinned to this daemon, validates the path, and takes the
-// path mutex. Returns a release callback (nil when no local_directory
-// resource applies) and abort=true when the caller must bail without
-// starting the task (the helper has already reported the failure to the
-// server).
-//
-// The helper covers four distinct failure modes:
-//
-//  1. The project_resource JSON is structurally broken — fail the task fast.
-//  2. The path fails validation (missing, not a directory, no R/W, system
-//     blacklist) — fail the task fast with a user-facing reason.
-//  3. The mutex is held by another task — call MarkTaskWaitingLocalDirectory
-//     so the row flips to waiting_local_directory while we block on the
-//     lock, then return the release callback once we win.
-//  4. The blocking wait is cancelled (daemon shutdown, server-side cancel)
-//     — fail the task with the ctx error.
+// acquireLocalDirectoryLockIfNeeded 按真实路径统一排序后获取目录锁，避免多仓库任务互相等锁。
 func (d *Daemon) acquireLocalDirectoryLockIfNeeded(ctx context.Context, task Task, taskLog *slog.Logger) (release func(), abort bool) {
 	if len(task.ProjectResources) == 0 || d.cfg.DaemonID == "" {
 		return nil, false
 	}
 	assignment, err := localDirectoryAssignmentForTask(task, d.cfg.DaemonID)
 	if err != nil {
-		taskLog.Error("local_directory: resolve resource failed", "error", err)
+		taskLog.Error("解析项目本地目录失败", "error", err)
 		if failErr := d.reportTerminalTask(ctx, terminalTaskReport{
 			kind:          terminalTaskReportFail,
 			taskID:        task.ID,
 			errorMessage:  err.Error(),
 			failureReason: "local_directory_error",
 		}); failErr != nil {
-			taskLog.Error("fail task after local_directory resolve error", "error", failErr)
+			taskLog.Error("上报本地目录解析失败的任务状态失败", "error", failErr)
 		}
 		return nil, true
 	}
 	if assignment == nil {
 		return nil, false
 	}
+	directories := assignment.Directories()
+	sort.Slice(directories, func(i, j int) bool { return directories[i].RealPath < directories[j].RealPath })
+	var releases []func()
+	releaseAll := func() {
+		for i := len(releases) - 1; i >= 0; i-- {
+			releases[i]()
+		}
+	}
+	for _, directory := range directories {
+		release, abort := d.acquireLocalDirectoryLock(ctx, task, directory, len(directories) > 1, taskLog)
+		if abort {
+			releaseAll()
+			return nil, true
+		}
+		if release != nil {
+			releases = append(releases, release)
+			if directory.UsesWorktree() && task.localDirectoryLease != nil {
+				task.localDirectoryLease.snapshots = append(task.localDirectoryLease.snapshots, release)
+			}
+		}
+	}
+	if len(releases) == 0 {
+		return nil, false
+	}
+	return releaseAll, false
+}
+
+// acquireLocalDirectoryLock 校验一个目录，并沿用任务等待、取消和续租流程。
+func (d *Daemon) acquireLocalDirectoryLock(ctx context.Context, task Task, assignment *localDirectoryAssignment, multiple bool, taskLog *slog.Logger) (release func(), abort bool) {
+	var err error
 	taskLog = taskLog.With("local_directory", assignment.AbsPath)
 	// Check the mode before the path: a mode this daemon can't honour is a
 	// version-skew problem the user fixes by upgrading, and reporting a path
 	// complaint first would send them looking in the wrong place.
 	if err := assignment.ValidateExecutionMode(); err != nil {
-		taskLog.Error("local_directory: unsupported execution mode", "error", err)
+		taskLog.Error("本地目录的执行方式不受支持", "error", err)
 		if failErr := d.reportTerminalTask(ctx, terminalTaskReport{
 			kind:          terminalTaskReportFail,
 			taskID:        task.ID,
 			errorMessage:  err.Error(),
 			failureReason: "local_directory_error",
 		}); failErr != nil {
-			taskLog.Error("fail task after local_directory mode check", "error", failErr)
+			taskLog.Error("上报本地目录执行方式错误的任务状态失败", "error", failErr)
 		}
 		return nil, true
 	}
 	if err := validateLocalPath(assignment.AbsPath); err != nil {
-		taskLog.Error("local_directory: path validation failed", "error", err)
+		taskLog.Error("校验本地目录失败", "error", err)
 		if failErr := d.reportTerminalTask(ctx, terminalTaskReport{
 			kind:          terminalTaskReportFail,
 			taskID:        task.ID,
 			errorMessage:  err.Error(),
 			failureReason: "local_directory_error",
 		}); failErr != nil {
-			taskLog.Error("fail task after local_directory validation error", "error", failErr)
+			taskLog.Error("上报本地目录校验失败的任务状态失败", "error", failErr)
 		}
 		return nil, true
 	}
@@ -6164,8 +6179,8 @@ func (d *Daemon) acquireLocalDirectoryLockIfNeeded(ctx context.Context, task Tas
 	// what lets sibling tasks on one directory run concurrently. Path
 	// validation above still applies — git needs to write worktree
 	// registrations into the user's repo.
-	if assignment.UsesWorktree() {
-		taskLog.Info("local_directory: worktree mode, skipping path mutex")
+	if assignment.UsesWorktree() && !multiple {
+		taskLog.Info("单仓库隔离模式，无需在执行期间占用原目录")
 		return nil, false
 	}
 
@@ -6176,8 +6191,8 @@ func (d *Daemon) acquireLocalDirectoryLockIfNeeded(ctx context.Context, task Tas
 	// behind a 20-minute build with nothing to contribute to it (issue #7344).
 	// See localDirectoryLockExempt for why the mutex does not owe this task a
 	// slot.
-	if localDirectoryLockExempt(task) {
-		taskLog.Info("local_directory: chat task, skipping path mutex")
+	if localDirectoryLockExempt(task) && !assignment.UsesWorktree() {
+		taskLog.Info("对话任务无需独占直接编辑目录")
 		return nil, false
 	}
 
@@ -6231,12 +6246,12 @@ func (d *Daemon) acquireLocalDirectoryLockIfNeeded(ctx context.Context, task Tas
 			// client — worth doing if this hint grows, not for one parenthetical.
 			reason = fmt.Sprintf("%s (held by task %s)", reason, shortID(holder))
 		}
-		taskLog.Info("local_directory: waiting on path mutex", "holder", holder)
+		taskLog.Info("正在等待本地目录空闲", "holder", holder)
 		if waitErr := d.client.MarkTaskWaitingLocalDirectory(ctx, task.ID, reason); waitErr != nil {
 			// Non-fatal: even if the server-side flag fails to update,
 			// we still want to block on the lock and proceed when free.
 			// The UI just won't see the explicit "waiting" badge.
-			taskLog.Warn("local_directory: mark waiting status failed", "error", waitErr)
+			taskLog.Warn("更新目录等待状态失败", "error", waitErr)
 		}
 		prepareLeaseOnce.Do(func() {
 			stopPrepareLease = d.startTaskPrepareLeaseExtender(waitCtx, task, taskLog)
@@ -6267,12 +6282,12 @@ func (d *Daemon) acquireLocalDirectoryLockIfNeeded(ctx context.Context, task Tas
 		if cancelledByPoll != nil {
 			select {
 			case <-cancelledByPoll:
-				taskLog.Info("local_directory: wait aborted by server-side terminal state")
+				taskLog.Info("任务已结束，停止等待本地目录")
 				return nil, true
 			default:
 			}
 		}
-		taskLog.Error("local_directory: lock acquire failed", "error", err)
+		taskLog.Error("占用本地目录失败", "error", err)
 		failureReason := "local_directory_error"
 		errorMessage := fmt.Sprintf("local_directory wait cancelled: %s", err.Error())
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -6283,7 +6298,7 @@ func (d *Daemon) acquireLocalDirectoryLockIfNeeded(ctx context.Context, task Tas
 				finalCtx, finalCancel := context.WithTimeout(context.WithoutCancel(ctx), terminalTaskReportTimeout)
 				defer finalCancel()
 				if status, statusErr := d.client.GetTaskStatus(finalCtx, task.ID); shouldInterruptAgent(status, statusErr) {
-					taskLog.Info("local_directory: wait aborted by server-side terminal state", "status", status, "error", statusErr)
+					taskLog.Info("任务已结束，停止等待本地目录", "status", status, "error", statusErr)
 					return nil, true
 				}
 				failureReason = taskfailure.ReasonRuntimeRecovery.String()
@@ -6296,11 +6311,11 @@ func (d *Daemon) acquireLocalDirectoryLockIfNeeded(ctx context.Context, task Tas
 			errorMessage:  errorMessage,
 			failureReason: failureReason,
 		}); failErr != nil {
-			taskLog.Error("fail task after local_directory lock cancel", "error", failErr)
+			taskLog.Error("上报目录等待已取消的任务状态失败", "error", failErr)
 		}
 		return nil, true
 	}
-	taskLog.Info("local_directory: lock acquired")
+	taskLog.Info("已占用本地目录")
 	return release, false
 }
 
@@ -8366,6 +8381,11 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			CodexCustomArgs:       codexSandboxArgs,
 			Task:                  taskCtx,
 		}
+		for _, directory := range localAssignment.Directories() {
+			prepParams.LocalDirectories = append(prepParams.LocalDirectories, execenv.LocalDirectoryForEnv{
+				Path: directory.AbsPath, Label: directory.DisplayName(), ExecutionMode: directory.Ref.ExecutionMode,
+			})
+		}
 		if localAssignment.UsesWorktree() {
 			prepParams.LocalWorktree = &execenv.LocalWorktreeParams{LocalPath: localAssignment.AbsPath}
 			// Take the per-path mutex for the snapshot alone, then hand it
@@ -8398,7 +8418,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			// LocalPathLocker invokes onWait synchronously, in this goroutine,
 			// at most once per Acquire — see the in-place call site.
 			waitCounted := false
-			release, lockErr := d.localPathLocks.Acquire(waitCtx, localAssignment.RealPath, task.ID, func(holder string) {
+			release, lockErr := d.acquireWorktreeSnapshotLock(waitCtx, task, localAssignment, func(holder string) {
 				d.resourceWaitTasks.Add(1)
 				waitCounted = true
 				reason := fmt.Sprintf("local_directory %s", localAssignment.AbsPath)
@@ -8443,6 +8463,10 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			}
 		}
 	}
+	if task.localDirectoryLease != nil {
+		task.localDirectoryLease.releaseSnapshots()
+	}
+	taskCtx.LocalDirectories = env.LocalDirectories
 	phaseRecorder.Mark(taskPhaseEnvironmentReady)
 	// Belt-and-suspenders: also mark whatever root we ended up with, in case
 	// future changes diverge from ResolveRootDir.
@@ -8500,6 +8524,19 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 				returnErr = wrapped
 			} else {
 				returnErr = errors.Join(returnErr, wrapped)
+			}
+		}()
+	}
+	if len(env.AdditionalLocalWorktrees) > 0 {
+		defer func() {
+			for _, worktree := range env.AdditionalLocalWorktrees {
+				outcome, err := worktree.Finalize(taskLog)
+				if err != nil {
+					taskLog.Error("额外仓库收尾失败，工作目录已保留", "path", outcome.PreservedPath, "error", err)
+					returnErr = errors.Join(returnErr, &worktreePreservedError{err: err})
+				} else {
+					taskLog.Info("额外仓库已交付", "repository", worktree.GitRoot, "branch", outcome.Branch)
+				}
 			}
 		}()
 	}
@@ -8971,6 +9008,11 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		OpenclawModelOverride:  openclawModelOverride,
 		ClaudeSettingsPath:     env.ClaudeSettingsPath,
 		QwenpawWorkspace:       env.QwenpawWorkspace,
+	}
+	for _, directory := range env.LocalDirectories {
+		if directory.Path != env.WorkDir {
+			execOpts.AdditionalDirs = append(execOpts.AdditionalDirs, directory.Path)
+		}
 	}
 	// Some providers do not reliably load the per-task runtime config files we
 	// write into the task workdir:

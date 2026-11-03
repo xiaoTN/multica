@@ -23,6 +23,8 @@ import type {
 } from "../shared/daemon-types";
 import { daemonStatusAlive } from "../shared/daemon-types";
 import { decideVersionAction } from "./version-decision";
+import { fetchLocal } from "./local-fetch";
+import { requireLoopbackUrl } from "../shared/local-network";
 import { createDaemonQuitHandler } from "./daemon-quit";
 import { quitConfirmationOptions, quitFailureOptions } from "./daemon-quit-dialogs";
 import {
@@ -206,7 +208,7 @@ async function fetchHealthAtPort(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/health`, {
+    const res = await fetchLocal(`http://127.0.0.1:${port}/health`, {
       signal: controller.signal,
     });
     if (!res.ok) return null;
@@ -246,7 +248,7 @@ async function probeTokenValidity(profile: string): Promise<AuthProbeResult> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 4_000);
-    const res = await fetch(`${targetApiBaseUrl.replace(/\/+$/, "")}/api/me`, {
+    const res = await fetchLocal(`${targetApiBaseUrl.replace(/\/+$/, "")}/api/me`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: controller.signal,
     });
@@ -618,7 +620,7 @@ async function mintPat(jwt: string): Promise<string> {
     throw new Error("mint PAT: target API URL not set");
   }
   const url = `${targetApiBaseUrl.replace(/\/+$/, "")}/api/tokens`;
-  const res = await fetch(url, {
+  const res = await fetchLocal(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -1384,9 +1386,10 @@ export function setupDaemonManager(
   getStatusWindows = statusWindowsGetter;
 
   ipcMain.handle("daemon:set-target-api-url", async (_e, url: string) => {
+    if (url) requireLoopbackUrl(url, "后台服务地址");
     const normalized = url || null;
     if (targetApiBaseUrl !== normalized) {
-      console.log(`[daemon] target API URL set to ${normalized ?? "(none)"}`);
+      console.log(`[后台程序] 本机服务地址已设为 ${normalized ?? "未设置"}`);
       setDesiredDaemonRunning(false);
       targetApiBaseUrl = normalized;
       invalidateActiveProfile();

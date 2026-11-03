@@ -9,9 +9,7 @@
 // ldflags mirror `make build` so `multica --version` reports a meaningful
 // version / commit / date.
 //
-// Graceful: if `go` is not installed (e.g. frontend-only contributor), we
-// skip the build and fall through to auto-install at runtime. A genuine
-// Go compile error is fatal — you want that to block dev, not hide.
+// 本机版本必须使用当前源码构建的 CLI，缺少 Go 时立即失败，不下载其他版本。
 
 import { access, chmod, copyFile, mkdir, rm } from "node:fs/promises";
 import { constants } from "node:fs";
@@ -135,20 +133,11 @@ if (hasGo()) {
     },
   );
 } else {
-  console.warn(
-    "[bundle-cli] `go` not found in PATH — skipping CLI build. " +
-      "Desktop will use whatever is already in resources/bin/, or fall back " +
-      "to auto-installing the latest release at runtime.",
-  );
+  throw new Error("本机版本必须使用 Go 构建配套 CLI，请先准备 Go 工具。");
 }
 
 if (!(await exists(srcBinary))) {
-  console.warn(
-    `[bundle-cli] ${srcBinary} not present — Desktop will fall back to ` +
-      `auto-installing the latest release at runtime.`,
-  );
-  await rm(destDir, { recursive: true, force: true });
-  process.exit(0);
+  throw new Error(`配套 CLI 未生成，已停止打包：${srcBinary}`);
 }
 
 await rm(destDir, { recursive: true, force: true });

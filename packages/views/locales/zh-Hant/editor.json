@@ -140,6 +140,7 @@
     "uploading": "正在上傳 {{filename}}"
   },
   "upload": {
+    "directory": "請先將 {{filename}} 壓縮為 ZIP 檔案後再上傳。",
     "failed": "{{filename}} 上傳失敗：{{reason}}",
     "in_progress": "上傳中…",
     "interrupted": "上傳已中斷——檔案未儲存。請重新新增。",

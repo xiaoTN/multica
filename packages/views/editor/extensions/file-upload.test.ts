@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { Editor } from "@tiptap/core";
+import { Editor, type Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "@tiptap/markdown";
 import { Slice } from "@tiptap/pm/model";
@@ -22,7 +22,7 @@ let editors: Editor[] = [];
 let originalCreateObjectURL: typeof URL.createObjectURL | undefined;
 let originalRevokeObjectURL: typeof URL.revokeObjectURL | undefined;
 
-function makeEditor() {
+function makeEditor(extraExtensions: Extensions = []) {
   const element = document.createElement("div");
   document.body.appendChild(element);
   const editor = new Editor({
@@ -32,6 +32,7 @@ function makeEditor() {
       ImageExtension,
       FileCardExtension,
       Markdown.configure({ indentation: { style: "space", size: 3 } }),
+      ...extraExtensions,
     ],
   });
   editors.push(editor);
@@ -336,6 +337,40 @@ describe("one identity from node to draft", () => {
       return undefined;
     });
     expect(cards).toBe(1);
+  });
+});
+
+describe("file drop", () => {
+  it.each([false, true])("claims directory drops and uploads only the accompanying file (%s)", (withFile) => {
+    const handler = vi.fn(async () => null);
+    const warn = vi.fn();
+    const editor = makeEditor([createFileUploadExtension(
+      { current: handler }, undefined, { current: warn },
+    )]);
+    vi.spyOn(editor.view, "posAtCoords").mockReturnValue(null);
+    const file = new File(["example"], "example.txt");
+    const event = {
+      dataTransfer: {
+        files: [new File([], "photos"), ...(withFile ? [file] : [])],
+        items: [
+          { kind: "file", webkitGetAsEntry: () => ({ isDirectory: true, name: "photos" }) },
+          ...(withFile ? [{ kind: "file", webkitGetAsEntry: () => null }] : []),
+        ],
+      },
+    } as unknown as DragEvent;
+    let handled = false;
+    editor.view.someProp("handleDrop", (fn) => {
+      if (fn(editor.view, event, Slice.empty, false)) { handled = true; return true; }
+      return false;
+    });
+
+    expect(handled).toBe(true);
+    expect(warn).toHaveBeenCalledExactlyOnceWith("photos");
+    if (withFile) {
+      expect(handler).toHaveBeenCalledExactlyOnceWith(file, expect.any(String));
+    } else {
+      expect(handler).not.toHaveBeenCalled();
+    }
   });
 });
 

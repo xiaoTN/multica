@@ -133,6 +133,7 @@
     "uploading": "{{filename}} 업로드 중"
   },
   "upload": {
+    "directory": "{{filename}}을(를) ZIP 파일로 압축한 후 업로드하세요.",
     "failed": "{{filename}}을(를) 업로드하지 못했어요: {{reason}}",
     "in_progress": "업로드 중…",
     "interrupted": "업로드가 중단되었어요 — 파일이 저장되지 않았어요. 다시 첨부해 주세요.",

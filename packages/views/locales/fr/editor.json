@@ -144,6 +144,7 @@
     "uploading": "Envoi de {{filename}}"
   },
   "upload": {
+    "directory": "Compressez {{filename}} en fichier ZIP avant de l’envoyer.",
     "failed": "Impossible d'envoyer {{filename}} : {{reason}}",
     "in_progress": "Envoi…",
     "interrupted": "Envoi interrompu — le fichier n'a pas été enregistré. Joignez-le de nouveau.",

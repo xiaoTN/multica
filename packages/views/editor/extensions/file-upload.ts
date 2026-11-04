@@ -2,6 +2,7 @@ import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import type { UploadResult } from "@multica/core/hooks/use-file-upload";
 import { createSafeId } from "@multica/core/utils";
+import { filesFromDrop } from "../utils/drop-files";
 
 /**
  * Locate this upload's placeholder node, whichever shape it took.
@@ -264,7 +265,7 @@ export async function uploadAndInsertFile(
 
 /** Deduplicate files from the same paste/drop event.
  *  macOS/Chrome can put the same file in the FileList twice. */
-function dedupFiles(files: FileList): File[] {
+function dedupFiles(files: FileList | File[]): File[] {
   const seen = new Set<string>();
   return Array.from(files).filter((file) => {
     const key = `${file.name}\0${file.size}\0${file.type}`;
@@ -314,6 +315,7 @@ export function createFileUploadExtension(
    * editor that never opts in behaves exactly as before.
    */
   pasteAsFileThresholdRef?: React.RefObject<number | undefined>,
+  onDirectoryDropRef?: React.RefObject<((name: string) => void) | undefined>,
 ) {
   return Extension.create({
     name: "fileUpload",
@@ -364,11 +366,12 @@ export function createFileUploadExtension(
               if (!files?.length) return false;
               const handler = onUploadFileRef.current;
               if (!handler) return false;
+              const unique = dedupFiles(filesFromDrop(dragEvent.dataTransfer!, onDirectoryDropRef?.current));
+              if (!unique.length) return true;
               // Resolve drop position from mouse coordinates.
               // Only the first file uses the drop position; subsequent files
               // append to the end to avoid stale position issues.
               const dropPos = view.posAtCoords({ left: dragEvent.clientX, top: dragEvent.clientY });
-              const unique = dedupFiles(files);
               for (let i = 0; i < unique.length; i++) {
                 const insertPos = i === 0 ? dropPos?.pos : undefined;
                 uploadAndInsertFile(editor, unique[i]!, handler, insertPos);

@@ -30,6 +30,7 @@ export function issueTasksOptions(issueId: string) {
     enabled: !!issueId,
     staleTime: 30_000,
     refetchOnWindowFocus: true,
+    refetchInterval: (query) => query.state.data?.some((task) => ["queued", "dispatched", "waiting_local_directory"].includes(task.status)) ? 15_000 : false,
   });
 }
 

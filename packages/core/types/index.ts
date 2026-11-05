@@ -38,6 +38,8 @@ export type {
   AgentInvocationTarget,
   AgentInvocationTargetInput,
   AgentTask,
+  RunWaitDiagnostic,
+  RunWaitHistoryEntry,
   TaskUsage,
   TaskAttribution,
   AttributionUser,

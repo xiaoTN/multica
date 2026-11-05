@@ -1322,9 +1322,10 @@ func (h *Handler) ListChatMessagesPage(w http.ResponseWriter, r *http.Request) {
 // optimistic seeds don't have a real task created_at and the timer needs to
 // survive refresh / reopen.
 type PendingChatTaskResponse struct {
-	TaskID    string `json:"task_id,omitempty"`
-	Status    string `json:"status,omitempty"`
-	CreatedAt string `json:"created_at,omitempty"`
+	WaitDiagnostic *service.RunWaitDiagnostic `json:"wait_diagnostic,omitempty"`
+	TaskID         string                     `json:"task_id,omitempty"`
+	Status         string                     `json:"status,omitempty"`
+	CreatedAt      string                     `json:"created_at,omitempty"`
 	// WaitReason explains a waiting_local_directory hold: which directory the
 	// task is parked on and, when known, the short id of the task holding it.
 	// Emitted only for that status — on any other one the column still carries
@@ -1670,6 +1671,11 @@ func (h *Handler) GetPendingChatTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	head := tasks[0]
+	var waitDiagnostic *service.RunWaitDiagnostic
+	if row, err := h.Queries.GetAgentTask(r.Context(), head.ID); err == nil {
+		rows := h.TaskService.RefreshRunWaits(r.Context(), []db.AgentTaskQueue{row})
+		waitDiagnostic = service.RunWaitForTask(rows[0])
+	}
 	queued := make([]QueuedChatTaskResponse, 0, len(tasks)-1)
 	for _, task := range tasks[1:] {
 		if task.Status != "queued" {
@@ -1685,12 +1691,13 @@ func (h *Handler) GetPendingChatTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, PendingChatTaskResponse{
-		TaskID:        uuidToString(head.ID),
-		Status:        head.Status,
-		CreatedAt:     timestampToString(head.CreatedAt),
-		WaitReason:    waitReasonForStatus(head.Status, head.WaitReason),
-		SupportsQueue: true,
-		QueuedTasks:   queued,
+		WaitDiagnostic: waitDiagnostic,
+		TaskID:         uuidToString(head.ID),
+		Status:         head.Status,
+		CreatedAt:      timestampToString(head.CreatedAt),
+		WaitReason:     waitReasonForStatus(head.Status, head.WaitReason),
+		SupportsQueue:  true,
+		QueuedTasks:    queued,
 	})
 }
 

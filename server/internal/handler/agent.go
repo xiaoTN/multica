@@ -395,9 +395,11 @@ type TaskCancellationActor struct {
 }
 
 type AgentTaskResponse struct {
-	StartClaimSupported      bool                   `json:"start_claim_supported,omitempty"`
-	CancelledByCommentChange bool                   `json:"cancelled_by_comment_change,omitempty"`
-	CancelledBy              *TaskCancellationActor `json:"cancelled_by,omitempty"`
+	WaitDiagnostic           *service.RunWaitDiagnostic `json:"wait_diagnostic,omitempty"`
+	WaitHistory              json.RawMessage            `json:"wait_history,omitempty"`
+	StartClaimSupported      bool                       `json:"start_claim_supported,omitempty"`
+	CancelledByCommentChange bool                       `json:"cancelled_by_comment_change,omitempty"`
+	CancelledBy              *TaskCancellationActor     `json:"cancelled_by,omitempty"`
 
 	ID                   string                 `json:"id"`
 	AgentID              string                 `json:"agent_id"`
@@ -904,6 +906,8 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		handoffNote = t.HandoffNote.String
 	}
 	return AgentTaskResponse{
+		WaitDiagnostic: service.RunWaitForTask(t),
+		WaitHistory:    t.WaitHistory,
 		// Task-scoped provenance must not transfer through copied retry context.
 		CancelledByCommentChange: t.Status == "cancelled" && cancellation.TaskID != "" && cancellation.TaskID == uuidToString(t.ID),
 		CancelledBy:              taskCancellationActorToResponse(t),
@@ -2976,6 +2980,7 @@ func (h *Handler) ListAgentTasks(w http.ResponseWriter, r *http.Request) {
 		last := tasks[len(tasks)-1]
 		nextCursor = transcriptCursor(last.CreatedAt.Time, last.ID)
 	}
+	tasks = h.TaskService.RefreshRunWaits(r.Context(), tasks)
 	resp := make([]AgentTaskResponse, len(tasks))
 	var taskIDs []pgtype.UUID
 	if includeUsage {

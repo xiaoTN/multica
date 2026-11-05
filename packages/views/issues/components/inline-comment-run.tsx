@@ -34,6 +34,7 @@ import { useStatusLabel } from "./task-run-labels";
 import { commentRunOutput, isActiveCommentRun, showCommentRunInHeader, type CommentRun } from "./comment-runs";
 
 import { useRunAnimationVisibility, useRunDisclosureMotion } from "./use-run-comment-motion";
+import { RunWaitFacts, useRunWaitLabel, isRunWaiting } from "../../common/run-wait";
 
 function thinkingPreview(content: string | undefined, formatText: (text: string) => string): string {
   // Redact the complete content before clipping so a split credential cannot leak.
@@ -104,7 +105,7 @@ export function InlineCommentRun({ run, className, viewState, showIdentity = fal
   const regionId = useId();
   // Keep one disclosure button mounted across queued, live, and historical states.
   // Historical, collapsed runs still don't fetch transcripts.
-  const loadTranscript = task.status === "running" || (presentation === "inline" && expanded) || fullLogOpen;
+  const loadTranscript = task.status === "running" || (presentation === "inline" && expanded && !isRunWaiting(task.status)) || fullLogOpen;
   const { data, isPending, isError, refetch } = useTaskMessages(task.id, active, loadTranscript);
   const items = useMemo(() => buildTimeline(data ?? []), [data]);
   const formatText = useTraceIssueLabels(useWorkspaceId(), task.issue_id, items, loadTranscript);
@@ -136,10 +137,8 @@ export function InlineCommentRun({ run, className, viewState, showIdentity = fal
     : current?.kind === "thinking" ? thinkingPreview(current.item.content, formatText) || t(($) => $.inline_run.thinking)
     : current?.kind === "error" ? t(($) => $.inline_run.error)
     : t(($) => $.inline_run.waiting_response);
-  const summary = task.status === "queued" ? t(($) => $.inline_run.queued)
-    : task.status === "dispatched" ? t(($) => $.inline_run.starting)
-    : task.status === "waiting_local_directory" ? t(($) => $.inline_run.waiting_directory)
-    : activitySummary;
+  const waitLabel = useRunWaitLabel(task.wait_diagnostic, task.status);
+  const summary = waitLabel ?? activitySummary;
   const showProgress = active && !hasReply;
   const activityLabel = t(($) => $.inline_run.view_activity);
   const stepLabel = steps.length > 0 ? t(($) => $.inline_run.steps, { count: steps.length }) : "";
@@ -241,6 +240,8 @@ export function InlineCommentRun({ run, className, viewState, showIdentity = fal
           </p>
         </TruncatedTooltip>}
         {expanded && <div id={regionId} className="mt-2 min-w-0 space-y-1">
+          {(isRunWaiting(task.status) || !!task.wait_history?.length) && <RunWaitFacts diagnostic={task.wait_diagnostic} history={task.wait_history} />}
+          {!isRunWaiting(task.status) && <>
           {isPending && <p className="text-caption text-muted-foreground">{t(($) => $.inline_run.loading)}</p>}
           {isError && <div role="alert" className="text-caption text-destructive">{t(($) => $.inline_run.load_failed)}
             <button className="ml-2 underline" type="button" onClick={() => void refetch()}>{t(($) => $.inline_run.try_again)}</button></div>}
@@ -250,6 +251,7 @@ export function InlineCommentRun({ run, className, viewState, showIdentity = fal
           {interleaveSteers(rows.slice(-visibleCount), steers, rows.length > visibleCount).map((item) => "steer" in item
             ? <InlineSteer key={`steer:${item.steer.id}`} steer={item.steer} />
             : <InlineStep key={item.row.seq} row={item.row} live={active} formatText={formatText} />)}
+          </>}
         </div>}
       </div>
       {transcript}

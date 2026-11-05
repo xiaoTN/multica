@@ -3656,6 +3656,9 @@ func (s *TaskService) claimTask(ctx context.Context, agentID, runtimeID pgtype.U
 	defer func() {
 		s.maybeLogClaimSlow(agentID, outcome, start, getAgentMs, countRunningMs, claimAgentMs, reanchorMs, updateStatusMs, dispatchMs)
 		s.recordClaimDecision(agentID, runtimeID, outcome, scope, decisionDetail)
+		if outcome == claimOutcomeClaimed || outcome == claimOutcomeNoCapacity || outcome == claimOutcomeRuntimeNoCapacity || outcome == claimOutcomeNoTasks {
+			s.observeAgentRunWaits(ctx, agentID)
+		}
 	}()
 
 	err := s.runInTx(ctx, func(qtx *db.Queries) error {

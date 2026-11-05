@@ -100,6 +100,7 @@ type AgentRuntime struct {
 	CustomName         pgtype.Text        `json:"custom_name"`
 	SharedWith         []pgtype.UUID      `json:"shared_with"`
 	MaxConcurrentTasks pgtype.Int4        `json:"max_concurrent_tasks"`
+	DaemonCapacity     []byte             `json:"daemon_capacity"`
 }
 
 type AgentSkill struct {
@@ -181,6 +182,8 @@ type AgentTaskQueue struct {
 	CancelledByName           pgtype.Text `json:"cancelled_by_name"`
 	IssueSnapshot             []byte      `json:"issue_snapshot"`
 	WorkflowStep              pgtype.Text `json:"workflow_step"`
+	WaitDiagnostic            []byte      `json:"wait_diagnostic"`
+	WaitHistory               []byte      `json:"wait_history"`
 }
 
 type AgentToLabel struct {

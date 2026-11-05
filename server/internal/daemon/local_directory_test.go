@@ -568,6 +568,14 @@ func TestAcquireLocalDirectoryLock_CancelDuringWait(t *testing.T) {
 			waitCall.Add(1)
 			parked.Store(true)
 			w.WriteHeader(http.StatusOK)
+		case strings.HasSuffix(r.URL.Path, "/progress"):
+			var preparation struct {
+				Code string `json:"preparation_code"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&preparation); err != nil || preparation.Code != "local_directory_busy" {
+				t.Errorf("directory wait preparation = %+v, error = %v", preparation, err)
+			}
+			w.WriteHeader(http.StatusOK)
 		case strings.HasSuffix(r.URL.Path, "/status"):
 			w.Header().Set("Content-Type", "application/json")
 			if parked.Load() {

@@ -481,6 +481,7 @@ const MessageBubble = memo(function MessageBubble({
   quickActionsPendingMessageId: string | null;
   starterCardsMessageId: string | null;
 }) {
+  const { t } = useT("chat");
   // The live row and the persisted assistant row both land here under one key,
   // and both render <AssistantMessage> — same component type, same position —
   // so React reconciles rather than remounts at task completion.
@@ -518,6 +519,15 @@ const MessageBubble = memo(function MessageBubble({
             content={message.content}
             className="mt-1.5"
           />
+          {message.delivery_status && (
+            <p role="status" className={cn("mt-1 text-caption text-muted-foreground", message.delivery_status === "failed" && "text-destructive")}>
+              {message.delivery_status === "delivered"
+                ? t(($) => $.delivery.delivered)
+                : message.delivery_status === "failed"
+                  ? `${t(($) => $.delivery.failed)} · ${message.delivery_failure_reason === "turn_ended" ? t(($) => $.delivery.turn_ended) : t(($) => $.delivery.rejected)}`
+                  : t(($) => $.delivery.pending)}
+            </p>
+          )}
         </div>
       </div>
     );

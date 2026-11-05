@@ -385,6 +385,8 @@ export function ChatPage() {
       />
 
       <ChatInput
+        sendMode={c.sendMode}
+        onSendModeChange={c.setSendMode}
         onSend={c.handleSend}
         restoreDraftRequest={c.restoreDraftRequest}
         conversationStarterRequest={c.conversationStarterRequest}

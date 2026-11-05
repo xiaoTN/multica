@@ -34,7 +34,9 @@
     "change_project_context": "プロジェクトコンテキストを変更",
     "remove_project_context": "プロジェクトコンテキストを削除",
     "no_projects": "プロジェクトがまだありません",
-    "project_context_unsupported": "プロジェクトの説明は適用されません——このエージェントのデーモンのアップグレードが必要です"
+    "project_context_unsupported": "プロジェクトの説明は適用されません——このエージェントのデーモンのアップグレードが必要です",
+    "steer_unavailable": "実行中の追加メッセージを受信できないか、添付ファイルがあります。下書きは保存されています。実行後の送信を選べます。",
+    "steer_queued": "このサーバーは次の実行にメッセージをキュー登録しました。"
   },
   "queue": {
     "title_other": "キュー内のメッセージ {{count}} 件",
@@ -251,5 +253,12 @@
     "delete": "チャットを削除",
     "archive": "チャットをアーカイブ",
     "unarchive": "アーカイブを解除"
+  },
+  "delivery": {
+    "pending": "現在の実行への配信待ち",
+    "delivered": "現在の実行が受信済み",
+    "failed": "現在の実行に未配信",
+    "turn_ended": "配信前に実行が終了しました。",
+    "rejected": "ランタイムが受信できませんでした。"
   }
 }

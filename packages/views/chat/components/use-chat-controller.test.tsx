@@ -161,7 +161,7 @@ vi.mock("@multica/core/logger", () => ({
   createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
 vi.mock("../../i18n", () => ({ useT: () => ({ t: () => "x" }) }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() } }));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
@@ -193,6 +193,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
 
 import { useChatController } from "./use-chat-controller";
 import { api, ApiError } from "@multica/core/api";
+import { useCommentComposerStore } from "@multica/core/issues/stores/comment-composer-store";
 
 // --- Fixtures ---------------------------------------------------------------
 function makeSession(
@@ -1098,6 +1099,20 @@ describe("useChatController.handleSend — compose target tracking", () => {
         }),
     };
   }
+
+  it("sends the saved steer preference to the exact running chat turn", async () => {
+    useCommentComposerStore.setState({ runningAgentReply: "steer" });
+    vi.mocked(api.sendChatMessage).mockResolvedValue({ message_id: "addition", task_id: "running-turn", created_at: new Date(0).toISOString(), steered: true });
+    const controller = setup("sA", [sA], [agentA], {
+      task_id: "running-turn", status: "running", supports_queue: true,
+      created_at: new Date(0).toISOString(),
+    });
+    await act(async () => { await controller.current.handleSend("additional instruction"); });
+    expect(api.sendChatMessage).toHaveBeenCalledWith(
+      "sA", "additional instruction", undefined,
+      { mode: "steer", expectedTaskId: "running-turn" },
+    );
+  });
 
   it("scrubs the composer after a new chat's first send", async () => {
     const { commitInput, send } = sendFrom(null);

@@ -71,6 +71,7 @@ import { useChatTaskActions } from "./use-chat-task-actions";
 import { useChatInputFocus } from "./use-chat-input-focus";
 import { useChatOpenReveal } from "./use-chat-open-reveal";
 import { ChatWindowMessages } from "./chat-window-messages";
+import { useChatSend } from "./use-chat-send";
 import { ChatInput } from "./chat-input";
 import { ChatQueue } from "./chat-queue";
 import { EmptyState } from "./chat-empty-state";
@@ -100,6 +101,7 @@ export function ChatWindow() {
   const wsId = useWorkspaceId();
   const isOpen = useChatStore((s) => s.isOpen);
   const activeSessionId = useChatStore((s) => s.activeSessionId);
+  const { sendMode, setSendMode, sendMessage } = useChatSend(activeSessionId);
   const { data: quickActionsPending = null } = useQuery(
     chatQuickActionsPendingOptions(activeSessionId ?? ""),
   );
@@ -484,7 +486,8 @@ export function ChatWindow() {
       // the draft for retry (ChatInput never cleared it).
       let result;
       try {
-        result = await api.sendChatMessage(sessionId, finalContent, attachmentIds);
+        result = await sendMessage(sessionId, finalContent, attachmentIds, pendingTaskId);
+        if (!result) return false;
       } catch (err) {
         apiLogger.error("sendChatMessage.error", { sessionId, err });
         const reason = dispatchReasonCode(err);
@@ -521,15 +524,16 @@ export function ChatWindow() {
         role: "user",
         content: finalContent,
         task_id: result.task_id,
-        created_at: result.created_at,
+        created_at: result.message_created_at ?? result.created_at,
         attachments: draftAttachments,
+        ...(result.steered && { delivery_status: "pending" as const }),
       };
       // Single door into the message caches (MUL-5711): idempotent by id, so
       // this row and the chat:message echo of the same send converge in either
       // arrival order, and this richer row (it carries the draft attachments)
       // is never downgraded by the echo, which has no attachments field.
       upsertChatMessageToCaches(qc, sessionId, sent, { seedIfMissing: true });
-      seedAcceptedPendingTask(qc, sessionId, {
+      if (!result.steered) seedAcceptedPendingTask(qc, sessionId, {
         task_id: result.task_id,
         created_at: result.created_at,
         message_id: result.message_id,
@@ -579,6 +583,7 @@ export function ChatWindow() {
       return true;
     },
     [
+      sendMessage,
       activeSessionId,
       activeAgent,
       activeAgentRuntimeBound,
@@ -954,6 +959,8 @@ export function ChatWindow() {
        *  agent has been archived (read-only); locked out entirely when there's
        *  no agent (the EmptyState above carries the CTA). */}
       <ChatInput
+        sendMode={sendMode}
+        onSendModeChange={setSendMode}
         onSend={handleSend}
         restoreDraftRequest={restoreDraftRequest}
         conversationStarterRequest={conversationStarterRequest}

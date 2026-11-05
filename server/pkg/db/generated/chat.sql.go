@@ -693,6 +693,12 @@ func (q *Queries) DeleteChatDraftRestoresBySession(ctx context.Context, chatSess
 }
 
 const deleteChatDraftRestoresBySystemRuntimeAgents = `-- name: DeleteChatDraftRestoresBySystemRuntimeAgents :exec
+WITH deleted_chat_supplements AS (
+    DELETE FROM chat_task_supplement WHERE chat_session_id IN (
+        SELECT cs.id FROM chat_session cs JOIN agent a ON a.id = cs.agent_id
+        WHERE a.runtime_id = $1 AND a.kind = 'system'
+    )
+)
 DELETE FROM chat_draft_restore
 WHERE chat_session_id IN (
     SELECT cs.id FROM chat_session cs

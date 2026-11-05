@@ -183,14 +183,14 @@ func (d *Daemon) runTaskSupplementLoop(ctx context.Context, session *agent.Sessi
 		if injectErr != nil {
 			// Raw provider/Go diagnostics remain local. Workspace-visible state is
 			// restricted to the stable reason code sent below.
-			taskLog.Warn("additional message injection failed", "comment_id", supplement.CommentID, "reason", reason, "error", injectErr)
+			taskLog.Warn("additional message injection failed", "delivery_id", supplement.deliveryID(), "reason", reason, "error", injectErr)
 		}
 
 		ackCtx, cancelAck := context.WithTimeout(context.WithoutCancel(ctx), taskSupplementAckTimeout)
-		ackErr := d.client.AckTaskSupplement(ackCtx, taskID, supplement.CommentID, injectErr == nil, reason)
+		ackErr := d.client.AckTaskSupplement(ackCtx, taskID, supplement.deliveryID(), injectErr == nil, reason)
 		cancelAck()
 		if ackErr != nil {
-			taskLog.Warn("additional message acknowledgement failed", "comment_id", supplement.CommentID, "error", ackErr)
+			taskLog.Warn("additional message acknowledgement failed", "delivery_id", supplement.deliveryID(), "error", ackErr)
 		}
 		// Do not sleep after a claim: drain already-ordered pending rows one at a
 		// time. When empty, the branch above returns to the bounded wait.

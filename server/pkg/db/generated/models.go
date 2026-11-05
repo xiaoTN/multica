@@ -567,6 +567,18 @@ type ChatSession struct {
 	ExplicitlyCreatedAt pgtype.Timestamptz `json:"explicitly_created_at"`
 }
 
+type ChatTaskSupplement struct {
+	MessageID     pgtype.UUID        `json:"message_id"`
+	TaskID        pgtype.UUID        `json:"task_id"`
+	ChatSessionID pgtype.UUID        `json:"chat_session_id"`
+	AuthorID      pgtype.UUID        `json:"author_id"`
+	Status        string             `json:"status"`
+	FailureReason pgtype.Text        `json:"failure_reason"`
+	AttemptCount  int32              `json:"attempt_count"`
+	DeliveredAt   pgtype.Timestamptz `json:"delivered_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
 type ClientUsageDaily struct {
 	UserID          pgtype.UUID        `json:"user_id"`
 	ClientType      string             `json:"client_type"`

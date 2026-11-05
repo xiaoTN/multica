@@ -18,6 +18,8 @@ import {
   useCoordinatedUploads,
   type UploadDraftBinding,
 } from "../../editor/use-coordinated-uploads";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@multica/ui/components/ui/select";
+import type { RunningAgentReply } from "@multica/core/issues/stores/comment-composer-store";
 import { SubmitButton } from "@multica/ui/components/common/submit-button";
 import { ChatAddMenu } from "./chat-add-menu";
 import { CHAT_COLUMN, CHAT_GUTTER } from "./chat-column";
@@ -60,6 +62,8 @@ function isAttachmentReferenced(content: string, attachment: Attachment): boolea
 
 interface ChatInputProps {
   onEditAnnotation?: (id: string) => boolean | Promise<boolean>;
+  sendMode?: RunningAgentReply;
+  onSendModeChange?: (mode: RunningAgentReply) => void;
   onSend: (
     content: string,
     attachmentIds: string[] | undefined,
@@ -153,6 +157,8 @@ interface ChatInputProps {
 
 export function ChatInput({
   onEditAnnotation,
+  sendMode = "after_run",
+  onSendModeChange,
   onSend,
   restoreDraftRequest,
   conversationStarterRequest,
@@ -180,6 +186,10 @@ export function ChatInput({
   editorKeyOverride,
 }: ChatInputProps) {
   const { t } = useT("chat");
+  const { t: tSettings } = useT("settings");
+  const steerLabel = tSettings(($) => $.preferences.running_agent_reply.steer);
+  const queueLabel = tSettings(($) => $.preferences.running_agent_reply.after_run);
+  const runningSendLabel = sendMode === "steer" ? steerLabel : t(($) => $.input.queue_send_tooltip);
   const { t: tEditor } = useT("editor");
   const sendShortcut = useShortcut("send");
   const editorRef = useRef<ContentEditorRef>(null);
@@ -780,7 +790,20 @@ export function ChatInput({
             {leftAdornment}
           </div>
         )}
-        <div className="absolute bottom-1 right-1.5 flex items-center gap-1">
+        <div className="absolute bottom-1 right-1.5 flex max-w-[70%] items-center gap-1">
+          {isRunning && allowSubmitWhileRunning && onSendModeChange && (
+            <Select items={[{ value: "steer", label: steerLabel }, { value: "after_run", label: queueLabel }]} value={sendMode} onValueChange={(value) => {
+              if (value === "steer" || value === "after_run") onSendModeChange(value);
+            }}>
+              <SelectTrigger size="sm" className="max-w-44" aria-label={tSettings(($) => $.preferences.running_agent_reply.title)}>
+                <SelectValue>{sendMode === "steer" ? steerLabel : queueLabel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="steer">{steerLabel}</SelectItem>
+                <SelectItem value="after_run">{queueLabel}</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           <SubmitButton
             onClick={submit}
             disabled={hasNothingToSend || submitting || !!disabled || !!noAgent}
@@ -804,7 +827,7 @@ export function ChatInput({
                 ? placeholder
                 : undefined}
             tooltip={isRunning
-              ? t(($) => $.input.queue_send_tooltip)
+              ? runningSendLabel
               : sendShortcut
                 ? (
                   <>
@@ -816,7 +839,7 @@ export function ChatInput({
             ariaLabel={gate.uploading
               ? tEditor(($) => $.upload.in_progress)
               : isRunning
-                ? t(($) => $.input.queue_send_tooltip)
+                ? runningSendLabel
               : t(($) => $.input.send_tooltip)}
             stopTooltip={t(($) => $.input.stop_tooltip)}
             stopAriaLabel={t(($) => $.input.stop_tooltip)}

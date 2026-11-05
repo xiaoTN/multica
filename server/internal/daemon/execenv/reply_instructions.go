@@ -187,10 +187,9 @@ func BuildCommentReplyInstructions(provider, issueID, triggerCommentID string, s
 // repeating it inline at every comment-triggered step 7 would be
 // duplication, not signal.
 func buildCommentReplyInstructionsSlim(provider, issueID, triggerCommentID string, squadLeader bool) string {
-	// The squad leader's `no_action` exit (recorded via `squad activity`) is
-	// the one path where posting no comment is correct — the imperative must
-	// carry its own carve-out so a later line never contradicts the
-	// no_action rule injected above it (MUL-5442 #6493 review).
+	// Scope the cookbook to written replies; the brief owns acknowledgement
+	// choices and the squad protocol owns the leader's no_action exit.
+	acknowledgementRoute := fmt.Sprintf("Follow the comment acknowledgement policy in ## Output for this message. A reaction targets `multica issue comment reaction add %s --emoji \"👌\"`. The posting instructions below apply only when a written reply is needed.\n\n", triggerCommentID)
 	lead := "Post your reply as a comment — always use the trigger comment ID below, "
 	if squadLeader {
 		lead = "Unless your outcome is `no_action`, post your reply as a comment — always use the trigger comment ID below, "
@@ -217,7 +216,7 @@ func buildCommentReplyInstructionsSlim(provider, issueID, triggerCommentID strin
 		// PowerShell 5.1 has no `&&` (it landed in PowerShell 7), so that
 		// variant checks $LASTEXITCODE — which carries the exit code of the
 		// last NATIVE command — and propagates it instead.
-		return fmt.Sprintf(
+		return acknowledgementRoute + fmt.Sprintf(
 			lead+
 				"do NOT reuse --parent values from previous turns in this session.\n\n"+
 				"Write the body file first — never pipe via `--content-stdin` (PowerShell drops non-ASCII; full rules: ## Comment Formatting above). Use the variant for the shell your command tool runs:\n\n"+
@@ -232,7 +231,7 @@ func buildCommentReplyInstructionsSlim(provider, issueID, triggerCommentID strin
 			issueID, triggerCommentID,
 		)
 	}
-	return fmt.Sprintf(
+	return acknowledgementRoute + fmt.Sprintf(
 		lead+
 			"do NOT reuse --parent values from previous turns in this session.\n\n"+
 			"Write the body file first (rules: ## Comment Formatting above — MUL-2904 / #4182):\n\n"+
@@ -288,19 +287,14 @@ func BuildMultiThreadCommentReplyInstructions(issueID string, targets []ThreadRe
 		targetLines += fmt.Sprintf("%d. thread %s → reply with `--parent %s`\n", i+1, tgt.ThreadID, tgt.ParentID)
 	}
 
-	// Same carve-out as the single-thread cookbook (MUL-5442 #6493 review):
-	// the leader's no_action exit must not be contradicted by this later
-	// imperative, and the scope sentence must govern the ENTIRE fan-out
-	// block — every obligation below ("multiple replies are required", the
-	// posting order, the per-thread file rule) sits under the "Otherwise" —
-	// not just the first verb. Ordinary agents keep the unconditional form
-	// byte-for-byte.
+	// The brief's acknowledgement policy applies per message. The squad
+	// leader's no_action exit scopes the entire fan-out block.
 	lead := "This run coalesced comments from %d DISTINCT threads. Post ONE reply per thread"
 	if squadLeader {
 		lead = "This run coalesced comments from %d DISTINCT threads. **If your outcome is `no_action`, skip this ENTIRE fan-out block — post no replies at all and exit via `multica squad activity` as your leader rules direct; everything below applies only otherwise.** Otherwise, post ONE reply per thread"
 	}
 	return fmt.Sprintf(
-		lead+" — %d in total. This OVERRIDES the \"post exactly one comment per run\" rule: for THIS run multiple replies are required and correct. Do NOT merge separate threads into one comment or post twice in the same thread.\n\n"+
+		lead+" — up to %d written replies. Apply the comment acknowledgement policy in ## Output to each message: a simple human confirmation may instead receive a reaction on its exact comment ID below. This OVERRIDES the \"post exactly one comment per run\" rule when several threads need text. Do NOT merge separate threads into one comment or post twice in the same thread.\n\n"+
 			"Reply targets, in posting order — OLDEST thread first, the newest (triggering) thread LAST. Use the exact `--parent` for each; never reuse a `--parent` from an earlier turn:\n"+
 			"%s\n"+
 			"Write and post each reply exactly as `## Comment Formatting` above directs, with ONE multi-thread delta: use a DISTINCT body file per thread (./reply-1.md, ./reply-2.md, …) so one reply's content can never leak into another's.\n",

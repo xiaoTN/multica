@@ -987,6 +987,9 @@ const ChatQuickActionSchema = z.object({
 }).loose();
 
 export const ChatMessageSchema = z.object({
+  delivery_status: z.enum(["pending", "delivering", "delivered", "failed"]).optional().catch(undefined),
+  delivery_failure_reason: z.string().nullable().optional().catch(undefined),
+  delivered_at: z.string().nullable().optional().catch(undefined),
   id: z.string(),
   chat_session_id: z.string(),
   role: z.enum(["user", "assistant"]).catch("assistant"),
@@ -2272,6 +2275,8 @@ export const ChatPendingTaskSchema: z.ZodType<ChatPendingTask> = z.object({
 export const EMPTY_CHAT_PENDING_TASK: ChatPendingTask = {};
 
 export const SendChatMessageResponseSchema: z.ZodType<SendChatMessageResponse> = z.object({
+  message_created_at: z.string().optional().catch(undefined),
+  steered: z.boolean().optional().catch(undefined),
   message_id: z.string().min(1),
   task_id: z.string().min(1),
   supports_queue: z.boolean().optional(),

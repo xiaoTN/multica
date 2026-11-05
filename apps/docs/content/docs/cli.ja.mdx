@@ -117,6 +117,13 @@ multica issue comment update <comment-id> --expected-revision 2 --content "回�
 multica issue runs MUL-123
 ```
 
+追加と削除は冪等です。`add` を繰り返しても同じリアクションが保持されます。エージェントの実行では、その実行のトークンで本人を識別します。
+
+```bash
+multica issue comment reaction add <comment-id> --emoji "👌"
+multica issue comment reaction remove <comment-id> --emoji "👌"
+```
+
 長い説明やコメントは stdin から読み込むと、改行や引用符の扱いに悩まずに済みます:
 
 ```bash

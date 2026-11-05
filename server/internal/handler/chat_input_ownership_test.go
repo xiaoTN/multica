@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/jackc/pgx/v5/pgtype"
 	"net/url"
 	"strings"
 	"testing"
@@ -43,7 +44,7 @@ func sendDirectChat(t *testing.T, ctx context.Context, agentID, sessionID, conte
 	if err != nil {
 		t.Fatalf("load agent: %v", err)
 	}
-	res, err := testHandler.TaskService.SendDirectChatMessage(ctx, sess, ag, parseUUID(testUserID), content, nil, "member", parseUUID(testUserID))
+	res, err := testHandler.TaskService.SendDirectChatMessage(ctx, sess, ag, parseUUID(testUserID), content, nil, "member", parseUUID(testUserID), pgtype.UUID{})
 	if err != nil {
 		t.Fatalf("SendDirectChatMessage: %v", err)
 	}

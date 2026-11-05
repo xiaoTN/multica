@@ -3924,11 +3924,14 @@ export class ApiClient {
     sessionId: string,
     content: string,
     attachmentIds?: string[],
+    options?: { mode: "steer" | "queue"; expectedTaskId?: string },
   ): Promise<SendChatMessageResponse> {
     const body: {
       content: string;
       attachment_ids?: string[];
-    } = { content };
+      mode?: "steer" | "queue";
+      expected_task_id?: string;
+    } = { content, ...(options && { mode: options.mode, expected_task_id: options.expectedTaskId }) };
     if (attachmentIds && attachmentIds.length > 0) {
       body.attachment_ids = attachmentIds;
     }

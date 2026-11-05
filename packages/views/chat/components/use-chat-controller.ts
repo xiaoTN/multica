@@ -13,7 +13,7 @@ import { getCurrentWsId } from "@multica/core/platform";
 import { agentListOptions, memberListOptions } from "@multica/core/workspace/queries";
 import { projectListOptions } from "@multica/core/projects/queries";
 import { canAssignAgent } from "../../issues/components/pickers/assignee-picker";
-import { api, dispatchReasonCode } from "@multica/core/api";
+import { dispatchReasonCode } from "@multica/core/api";
 import {
   isAgentRuntimeBound as hasAgentRuntime,
   useAgentPresenceDetail,
@@ -41,6 +41,7 @@ import {
   hideQueuedChatMessages,
 } from "@multica/core/chat/pending";
 import { useChatDraftRestore } from "./use-chat-draft-restore";
+import { useChatSend } from "./use-chat-send";
 import { useChatTaskActions } from "./use-chat-task-actions";
 import { useChatProjectContextSupport } from "./use-chat-project-context-support";
 import { createLogger } from "@multica/core/logger";
@@ -208,6 +209,7 @@ export function useChatController(opts?: { isActive?: boolean }) {
   const { t } = useT("chat");
   const wsId = useWorkspaceId();
   const activeSessionId = useChatStore((s) => s.activeSessionId);
+  const { sendMode, setSendMode, sendMessage } = useChatSend(activeSessionId);
   const selectedAgentId = useChatStore((s) => s.selectedAgentId);
   const selectedProjectId = useChatStore((s) => s.selectedProjectId);
   const setActiveSession = useChatStore((s) => s.setActiveSession);
@@ -576,7 +578,8 @@ export function useChatController(opts?: { isActive?: boolean }) {
       // the draft for retry (ChatInput never cleared it).
       let result;
       try {
-        result = await api.sendChatMessage(sessionId, finalContent, attachmentIds);
+        result = await sendMessage(sessionId, finalContent, attachmentIds, pendingTaskId);
+        if (!result) return false;
       } catch (err) {
         apiLogger.error("sendChatMessage.error", { sessionId, err });
         // Invoke permission can be revoked mid-session; the send is refused with
@@ -614,15 +617,16 @@ export function useChatController(opts?: { isActive?: boolean }) {
         role: "user",
         content: finalContent,
         task_id: result.task_id,
-        created_at: result.created_at,
+        created_at: result.message_created_at ?? result.created_at,
         attachments: draftAttachments,
+        ...(result.steered && { delivery_status: "pending" as const }),
       };
       // Single door into the message caches (MUL-5711): idempotent by id, so
       // this row and the chat:message echo of the same send converge in either
       // arrival order, and this richer row (it carries the draft attachments)
       // is never downgraded by the echo, which has no attachments field.
       upsertChatMessageToCaches(qc, sessionId, sent, { seedIfMissing: true });
-      seedAcceptedPendingTask(qc, sessionId, {
+      if (!result.steered) seedAcceptedPendingTask(qc, sessionId, {
         task_id: result.task_id,
         created_at: result.created_at,
         message_id: result.message_id,
@@ -630,6 +634,9 @@ export function useChatController(opts?: { isActive?: boolean }) {
         supports_queue: result.supports_queue,
         queued: result.queued,
       });
+      if (result.steered) {
+        qc.invalidateQueries({ queryKey: chatKeys.pendingTask(sessionId) });
+      }
       // Cache primed → publish the new active session, but only if the user
       // hasn't navigated away mid-send. See isStillOnComposeTarget. commitInput
       // clears the sent draft, and scrubs the shared editor only when the user
@@ -666,6 +673,7 @@ export function useChatController(opts?: { isActive?: boolean }) {
       return true;
     },
     [
+      sendMessage,
       activeSessionId,
       activeAgent,
       isAgentArchived,
@@ -831,6 +839,8 @@ export function useChatController(opts?: { isActive?: boolean }) {
   const hasMessages = messages.length > 0 || !!pendingTaskId;
 
   return {
+    sendMode,
+    setSendMode,
     // identity / lists
     wsId,
     user,

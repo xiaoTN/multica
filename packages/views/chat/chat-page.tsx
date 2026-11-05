@@ -389,6 +389,8 @@ export function ChatPage() {
 
       <ChatInput
         onEditAnnotation={c.showSkeleton ? undefined : (id) => messageListRef.current?.editAnnotation(id) ?? false}
+        sendMode={c.sendMode}
+        onSendModeChange={c.setSendMode}
         onSend={c.handleSend}
         restoreDraftRequest={c.restoreDraftRequest}
         conversationStarterRequest={c.conversationStarterRequest}

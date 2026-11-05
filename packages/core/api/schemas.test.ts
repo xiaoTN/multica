@@ -941,6 +941,12 @@ describe("SendChatMessageResponseSchema", () => {
     created_at: "2026-08-05T00:00:00Z",
   };
 
+  it("keeps steering additive and ignores malformed delivery flags", () => {
+    expect(SendChatMessageResponseSchema.parse({ ...base, steered: true }).steered).toBe(true);
+    expect(SendChatMessageResponseSchema.parse({ ...base, steered: "yes" }).steered).toBeUndefined();
+    expect(SendChatMessageResponseSchema.parse(base).steered).toBeUndefined();
+  });
+
   it("parses the server-authoritative queue position", () => {
     expect(SendChatMessageResponseSchema.parse({ ...base, queued: false }).queued).toBe(false);
   });

@@ -133,6 +133,9 @@ export interface HasPendingChatTasksResponse {
 }
 
 export interface ChatMessage {
+  delivery_status?: "pending" | "delivering" | "delivered" | "failed";
+  delivery_failure_reason?: string | null;
+  delivered_at?: string | null;
   id: string;
   chat_session_id: string;
   role: "user" | "assistant";
@@ -187,6 +190,8 @@ export interface ChatMessagesPage {
 }
 
 export interface SendChatMessageResponse {
+  message_created_at?: string;
+  steered?: boolean;
   message_id: string;
   task_id: string;
   /** True when the server supports queued follow-up sends. */

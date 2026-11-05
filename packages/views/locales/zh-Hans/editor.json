@@ -140,6 +140,9 @@
     "uploading": "正在上传 {{filename}}"
   },
   "upload": {
+    "select_local": "选择本地文件或文件夹",
+    "pick_failed": "无法选择文件：{{reason}}",
+    "directory": "请先将 {{filename}} 压缩为 ZIP 文件后再上传。",
     "failed": "{{filename}} 上传失败：{{reason}}",
     "in_progress": "上传中…",
     "interrupted": "上传已中断——文件未保存。请重新添加。",

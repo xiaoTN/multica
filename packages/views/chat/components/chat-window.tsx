@@ -72,7 +72,7 @@ import { useChatInputFocus } from "./use-chat-input-focus";
 import { useChatOpenReveal } from "./use-chat-open-reveal";
 import { ChatWindowMessages } from "./chat-window-messages";
 import { useChatSend } from "./use-chat-send";
-import { ChatInput } from "./chat-input";
+import { ChatInput, type ChatInputRef } from "./chat-input";
 import { ChatQueue } from "./chat-queue";
 import { EmptyState } from "./chat-empty-state";
 import { SessionRenameInput } from "./session-rename-input";
@@ -97,6 +97,7 @@ const apiLogger = createLogger("chat.api");
 
 
 export function ChatWindow() {
+  const inputRef = useRef<ChatInputRef>(null);
   const { t } = useT("chat");
   const wsId = useWorkspaceId();
   const isOpen = useChatStore((s) => s.isOpen);
@@ -895,6 +896,7 @@ export function ChatWindow() {
       <AnimatePresence initial={false}>
         {isOpen && (
           <ChatWindowMessages
+            onReplyAnnotation={(quote, note) => inputRef.current?.addReplyAnnotation(quote, note)}
             sessionId={activeSessionId}
             pendingTask={pendingTask}
             pendingTaskLoading={pendingTaskLoading}
@@ -961,6 +963,7 @@ export function ChatWindow() {
       <ChatInput
         sendMode={sendMode}
         onSendModeChange={setSendMode}
+        ref={inputRef}
         onSend={handleSend}
         restoreDraftRequest={restoreDraftRequest}
         conversationStarterRequest={conversationStarterRequest}

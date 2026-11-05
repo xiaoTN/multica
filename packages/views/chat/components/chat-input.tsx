@@ -1,7 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode, Ref } from "react";
+import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { TriangleAlert } from "@multica/ui/icons";
 import { toast } from "sonner";
 import { cn } from "@multica/ui/lib/utils";
@@ -58,9 +58,14 @@ function isAttachmentReferenced(content: string, attachment: Attachment): boolea
   return attachmentReferenceUrls(attachment).some((url) => content.includes(url));
 }
 
+export interface ChatInputRef {
+  addReplyAnnotation: (quote: string, note: string) => void;
+}
+
 interface ChatInputProps {
   sendMode?: RunningAgentReply;
   onSendModeChange?: (mode: RunningAgentReply) => void;
+  ref?: Ref<ChatInputRef>;
   onSend: (
     content: string,
     attachmentIds: string[] | undefined,
@@ -155,6 +160,7 @@ interface ChatInputProps {
 export function ChatInput({
   sendMode = "after_run",
   onSendModeChange,
+  ref,
   onSend,
   restoreDraftRequest,
   conversationStarterRequest,
@@ -283,6 +289,17 @@ export function ChatInput({
     },
     [setInputDraft, setInputDraftAttachments],
   );
+  useImperativeHandle(ref, () => ({
+    addReplyAnnotation: (quote, note) => {
+      if (disabled || noAgent || !quote.trim() || !note.trim() || editorDraftKeyRef.current !== draftKey) return;
+      const editor = editorRef.current;
+      if (!editor?.insertReplyAnnotationAtEnd(quote, note)) return;
+      const markdown = editor.flushPendingUpdate() ?? editor.getMarkdown();
+      commitDraft(draftKey, markdown);
+      setIsEmpty(false);
+    },
+  }), [disabled, noAgent, draftKey, commitDraft]);
+
   // Submit gate. `uploading` disables the SubmitButton the instant an upload
   // starts; `isBlocked()` is re-read inside handleSend for the paths that skip
   // the button entirely (Mod+Enter mid-paste, drag-drop racing the keyboard).

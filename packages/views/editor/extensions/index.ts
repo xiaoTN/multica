@@ -150,6 +150,7 @@ export interface EditorExtensionsOptions {
   onUploadFileRef?: RefObject<
     ((file: File, uploadId: string) => Promise<UploadResult | null>) | undefined
   >;
+  onDirectoryDropRef?: RefObject<((name: string) => void) | undefined>;
   /**
    * Character count above which a plain-text paste becomes a .txt attachment
    * instead of document text. A ref so the value can change without
@@ -311,6 +312,6 @@ export function createEditorExtensions(
       return true;
     }),
     createBlurShortcutExtension(),
-    createFileUploadExtension(options.onUploadFileRef!, options.pasteAsFileThresholdRef),
+    createFileUploadExtension(options.onUploadFileRef!, options.pasteAsFileThresholdRef, options.onDirectoryDropRef),
   ];
 }

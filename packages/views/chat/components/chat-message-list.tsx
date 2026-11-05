@@ -57,11 +57,13 @@ import {
   splitTimeline,
 } from "../lib/copy-text";
 import { stripChatQuickActionsProtocol } from "../lib/quick-actions";
+import { useChatReplySelection } from "./use-chat-reply-selection";
 import { useT } from "../../i18n";
 
 // ─── Public component ────────────────────────────────────────────────────
 
 interface ChatMessageListProps {
+  onReplyAnnotation?: (quote: string, note: string) => void;
   /** Pause bottom-stick effects while a closing floating window fades out. */
   active?: boolean;
   /**
@@ -186,6 +188,7 @@ const LIST_COMPONENTS: Components<ChatRenderItem, ChatListContext> = {
 };
 
 export function ChatMessageList({
+  onReplyAnnotation,
   active = true,
   revealKey = null,
   onRevealed,
@@ -202,12 +205,14 @@ export function ChatMessageList({
   onRegenerateQuickActions,
   quickActionsPendingMessageId = null,
 }: ChatMessageListProps) {
+  const { containerRef, captureProps, popup } = useChatReplySelection(active ? onReplyAnnotation : undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollContainerEl, setScrollContainerEl] = useState<HTMLDivElement | null>(null);
   const setScrollContainerRef = useCallback((node: HTMLDivElement | null) => {
     scrollRef.current = node;
+    containerRef.current = node;
     setScrollContainerEl(node);
-  }, []);
+  }, [containerRef]);
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   // The bottom-stick corrects through Virtuoso, never by writing `scrollTop`
   // on the container: `scrollHeight` is an estimate over the unrendered rows,
@@ -329,6 +334,7 @@ export function ChatMessageList({
     <PreviewSequenceProvider items={previewSequence}>
     <div
       ref={setScrollContainerRef}
+      {...captureProps}
       data-tab-scroll-root
       style={fadeStyle}
       // The gutter lives on the scroll container, so it applies once to the
@@ -412,6 +418,7 @@ export function ChatMessageList({
       </RichContentScrollRootProvider>
       )}
     </div>
+    {popup}
     </PreviewSequenceProvider>
   );
 }
@@ -508,12 +515,14 @@ const MessageBubble = memo(function MessageBubble({
            * Issue/Comment — a Mermaid fence a user pastes is a diagram here
            * too. `compact` trims the leading/trailing block margins so a
            * single-line bubble stays as tight as the plain-text version. */}
-          <RichContent
-            content={message.content}
-            attachments={message.attachments}
-            density="compact"
-            phase="settled"
-          />
+          <div data-chat-reply-content={message.id} tabIndex={0}>
+            <RichContent
+              content={message.content}
+              attachments={message.attachments}
+              density="compact"
+              phase="settled"
+            />
+          </div>
           <AttachmentList
             attachments={message.attachments}
             content={message.content}
@@ -642,26 +651,28 @@ function AssistantMessage({
 
   return (
     <div className="w-full space-y-1.5">
-      {timeline.length > 0 && (
-        <TimelineView
-          items={timeline}
-          attachments={message?.attachments}
-          phase={phase}
-          isStreaming={!message}
-          settledContent={canonicalAnswer}
-        />
-      )}
-      {isNoResponse ? (
-        <NoResponseNotice />
-      ) : message && timeline.length === 0 ? (
-        <RichContent
-          content={settledContent ?? message.content}
-          attachments={message.attachments}
-          density="compact"
-          phase="settled"
-          className="leading-relaxed"
-        />
-      ) : null}
+      <div data-chat-reply-content={message?.id ?? taskId ?? undefined} tabIndex={0}>
+        {timeline.length > 0 && (
+          <TimelineView
+            items={timeline}
+            attachments={message?.attachments}
+            phase={phase}
+            isStreaming={!message}
+            settledContent={canonicalAnswer}
+          />
+        )}
+        {isNoResponse ? (
+          <NoResponseNotice />
+        ) : message && timeline.length === 0 ? (
+          <RichContent
+            content={settledContent ?? message.content}
+            attachments={message.attachments}
+            density="compact"
+            phase="settled"
+            className="leading-relaxed"
+          />
+        ) : null}
+      </div>
       {message && (
         <>
           <AttachmentList

@@ -502,6 +502,15 @@ export class TestApiClient {
     if (!response.ok) throw new Error(`cancel acknowledgement failed: ${response.status}`);
   }
 
+  async receiveChatSupplement(taskId: string) {
+    const claimed = await this.authedFetch(`/api/daemon/tasks/${taskId}/supplements/claim`, {method:"POST",body:"{}"});
+    if (!claimed.ok) throw new Error(`supplement claim failed: ${claimed.status}`);
+    const input: {message_id:string; content:string} = await claimed.json();
+    const ack = await this.authedFetch(`/api/daemon/tasks/${taskId}/supplements/${input.message_id}/ack`, {method:"POST",body:JSON.stringify({delivered:true})});
+    if (!ack.ok) throw new Error(`supplement acknowledgement failed: ${ack.status}`);
+    return input;
+  }
+
   getEmail() {
     if (!this.email) {
       throw new Error("Test API client is not logged in");

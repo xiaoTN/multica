@@ -3992,14 +3992,21 @@ export class ApiClient {
     );
   }
 
-  async steerQueuedChatTask(sessionId: string, taskId: string, expectedTaskId: string): Promise<SendChatMessageResponse> {
+  async steerQueuedChatTask(
+    sessionId: string,
+    taskId: string,
+    expectedTaskId: string,
+  ): Promise<SendChatMessageResponse> {
     const raw = await this.fetch<unknown>(`/api/chat/sessions/${sessionId}/queued-tasks/${taskId}/steer`, {
       method: "POST",
       body: JSON.stringify({ expected_task_id: expectedTaskId }),
     });
-    const response = parseWithFallback<SendChatMessageResponse | null>(raw, SendChatMessageResponseSchema, null, {
-      endpoint: "POST /api/chat/sessions/:id/queued-tasks/:taskId/steer",
-    });
+    const response = parseWithFallback<SendChatMessageResponse | null>(
+      raw,
+      SendChatMessageResponseSchema,
+      null,
+      { endpoint: "POST /api/chat/sessions/:id/queued-tasks/:taskId/steer" },
+    );
     if (!response || response.steered !== true || response.queued === true || response.task_id !== expectedTaskId) {
       throw new Error("invalid queued chat steer response");
     }

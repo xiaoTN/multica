@@ -124,6 +124,36 @@ func TestQueuedChatSteerRefusalPreservesMessagesAndQueue(t *testing.T) {
 	}
 }
 
+func TestQueuedChatSteerOutOfOrderReceipts(t *testing.T) {
+	sessionID, taskID, _ := chatSteerFixture(t)
+	var queued [2]SendChatMessageResponse
+	for i := range queued {
+		sendChatAddition(t, sessionID, taskID, "queue").Want(http.StatusCreated).JSON(&queued[i])
+	}
+	for _, i := range []int{1, 0} {
+		req := withChatTestWorkspaceCtx(t, withURLParams(newRequest(http.MethodPost, "/steer", map[string]any{"expected_task_id": taskID}), "sessionId", sessionID, "taskId", queued[i].TaskID))
+		testutil.Call(t, testHandler.SteerQueuedChatTask, req).Want(http.StatusOK)
+		claim := withURLParam(newOwnerDaemonRequest(http.MethodPost, "/claim", nil), "taskId", taskID)
+		testutil.Call(t, testHandler.ClaimTaskSupplement, claim).Want(http.StatusOK)
+	}
+	for _, i := range []int{0, 1} {
+		ack := withURLParams(newOwnerDaemonRequest(http.MethodPost, "/ack", map[string]any{"delivered": i == 1, "error": "provider rejected input"}), "taskId", taskID, "commentId", queued[i].MessageID)
+		testutil.Call(t, testHandler.AckTaskSupplement, ack).Want(http.StatusOK)
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM chat_message WHERE chat_session_id=$1 AND task_id=$2`, sessionID, taskID); n != 2 {
+		t.Fatalf("receipt order lost or duplicated messages: %d", n)
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM chat_task_supplement WHERE task_id=$1 AND status='delivered'`, taskID); n != 1 {
+		t.Fatal("successful receipt was lost")
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM chat_task_supplement WHERE task_id=$1 AND status='failed'`, taskID); n != 1 {
+		t.Fatal("failed receipt was hidden")
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM chat_draft_restore WHERE chat_session_id=$1`, sessionID); n != 0 {
+		t.Fatal("failed receipt restored an unrelated prompt")
+	}
+}
+
 func TestChatSteerRefusesUnavailableExactTurnWithoutQueueing(t *testing.T) {
 	for _, cause := range []string{"completed", "unsupported", "another_session"} {
 		t.Run(cause, func(t *testing.T) {

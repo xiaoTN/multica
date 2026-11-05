@@ -28,17 +28,25 @@ describe("ApiClient status reorder", () => {
 
 describe("ApiClient queued chat steering", () => {
   it("binds the request to the running task and keeps the accepted message ID", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({message_id:"B",task_id:"A-run",created_at:"now",steered:true,queued:false})));
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      message_id: "B", task_id: "A-run", created_at: "now", steered: true, queued: false,
+    })));
     vi.stubGlobal("fetch", fetchMock);
-    const response = await new ApiClient("https://api.example.test").steerQueuedChatTask("chat","B-run","A-run");
+    const response = await new ApiClient("https://api.example.test").steerQueuedChatTask("chat", "B-run", "A-run");
     expect(response.message_id).toBe("B");
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.example.test/api/chat/sessions/chat/queued-tasks/B-run/steer");
-    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({expected_task_id:"A-run"});
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ expected_task_id: "A-run" });
   });
 
-  it.each([{}, {message_id:"B",task_id:"A-run",created_at:"now"}, {message_id:"B",task_id:"A-run",created_at:"now",steered:true,queued:true}])("rejects a malformed or unconfirmed delivery response %j", async body => {
-    vi.stubGlobal("fetch",vi.fn().mockResolvedValue(new Response(JSON.stringify(body))));
-    await expect(new ApiClient("https://api.example.test").steerQueuedChatTask("chat","B-run","A-run")).rejects.toThrow("invalid queued chat steer response");
+  it.each([
+    {},
+    { message_id: "B", task_id: "A-run", created_at: "now" },
+    { message_id: "B", task_id: "A-run", created_at: "now", steered: true, queued: true },
+    { message_id: "B", task_id: "wrong-run", created_at: "now", steered: true },
+  ])("rejects a malformed or unconfirmed delivery response %j", async body => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(body))));
+    await expect(new ApiClient("https://api.example.test").steerQueuedChatTask("chat", "B-run", "A-run"))
+      .rejects.toThrow("invalid queued chat steer response");
   });
 });
 

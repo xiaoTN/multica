@@ -2,6 +2,7 @@ import "./env";
 import { test, expect } from "@playwright/test";
 import pg from "pg";
 import { TestApiClient } from "./fixtures";
+import { writeFile } from "node:fs/promises";
 
 test.use({ launchOptions: { executablePath: process.env.MULTICA_E2E_CHROMIUM_EXECUTABLE } });
 
@@ -28,10 +29,6 @@ test("Enter adds chat input to the exact running turn", async ({ page }, testInf
     runtimeId = (await database.query(`INSERT INTO agent_runtime (workspace_id, name, runtime_mode, provider, status, device_info, metadata, owner_id, last_seen_at) VALUES ($1,'Chat steer verification','cloud','codex','online','E2E fixture','{}',$2,now()) RETURNING id`, [workspace.id, userId])).rows[0].id;
     agentId = (await database.query(`INSERT INTO agent (workspace_id,name,description,instructions,runtime_mode,runtime_config,runtime_id,visibility,permission_mode,max_concurrent_tasks,owner_id) VALUES ($1,'Chat steer verification','','','cloud','{}',$2,'private','private',1,$3) RETURNING id`, [workspace.id, runtimeId, userId])).rows[0].id;
     sessionId = (await database.query(`INSERT INTO chat_session (workspace_id,agent_id,creator_id,title,status,explicitly_created_at) VALUES ($1,$2,$3,'Enter steering verification','active',now()) RETURNING id`, [workspace.id, agentId, userId])).rows[0].id;
-    runId = (await database.query(`INSERT INTO agent_task_queue (agent_id,runtime_id,chat_session_id,status,dispatched_at,started_at) VALUES ($1,$2,$3,'running',now(),now()) RETURNING id`, [agentId,runtimeId,sessionId])).rows[0].id;
-    await database.query(`UPDATE agent_task_queue SET chat_input_task_id=id WHERE id=$1`,[runId]);
-    await database.query(`INSERT INTO task_supplement_capability (task_id,workspace_id,capability) VALUES ($1,$2,'task-supplement-v1')`, [runId,workspace.id]);
-    const originalId = (await database.query(`INSERT INTO chat_message (chat_session_id,role,content,task_id) VALUES ($1,'user','Message A already sent',$2) RETURNING id`, [sessionId,runId])).rows[0].id;
     await page.addInitScript(token => {
       localStorage.setItem("multica_token", token!);
       localStorage.setItem("multica:chat:isOpen", "false");
@@ -41,6 +38,19 @@ test("Enter adds chat input to the exact running turn", async ({ page }, testInf
     await page.goto(`/${workspace.slug}/chat?session=${sessionId}`, { waitUntil: "domcontentloaded" });
     const editor = page.locator('.ProseMirror[contenteditable="true"]').last();
     await expect(editor).toBeVisible({timeout: 45_000});
+    await editor.fill("Message A already sent");
+    await expect(page.getByRole("button", {name:"Send",exact:true})).toBeEnabled();
+    const firstResponse = page.waitForResponse(r => r.request().method()==="POST" && r.url().endsWith(`/sessions/${sessionId}/messages`));
+    await editor.press("Enter");
+    const first = await firstResponse;
+    expect(first.status()).toBe(201);
+    const original = await first.json();
+    const originalId = original.message_id;
+    runId = original.task_id;
+    // The fixture supplies daemon state; no installed agent CLI is executed.
+    await database.query(`UPDATE agent_task_queue SET status='running',started_at=now(),dispatched_at=now() WHERE id=$1`,[runId]);
+    await database.query(`INSERT INTO task_supplement_capability (task_id,workspace_id,capability) VALUES ($1,$2,'task-supplement-v1')`, [runId,workspace.id]);
+    await page.reload({waitUntil:"domcontentloaded"});
     await expect(page.getByRole("combobox", {name:"When replying to a running agent"})).toBeVisible();
     await editor.fill("Enter steering browser evidence");
     await expect(page.getByRole("button", {name:"Queue message",exact:true})).toBeEnabled();
@@ -67,7 +77,8 @@ test("Enter adds chat input to the exact running turn", async ({ page }, testInf
     await editor.press("ControlOrMeta+Enter");
     const queued = await queuedResponse;
     expect(queued.request().postDataJSON()).toMatchObject({mode: "queue", expected_task_id: runId});
-    expect(await queued.json()).toMatchObject({steered: false, queued: true});
+    const queuedSent = await queued.json();
+    expect(queuedSent).toMatchObject({steered: false, queued: true});
     expect((await database.query(`SELECT id FROM agent_task_queue WHERE chat_session_id=$1`,[sessionId])).rows).toHaveLength(2);
     const actionResponse = page.waitForResponse(r => r.request().method()==="POST" && /queued-tasks\/[^/]+\/(prioritize|steer)$/.test(r.url()));
     const cancellation = page.waitForResponse(r => r.url().endsWith(`/tasks/${runId}/cancel`),{timeout:5000}).catch(() => null);
@@ -81,10 +92,42 @@ test("Enter adds chat input to the exact running turn", async ({ page }, testInf
       await expect(page.getByRole("combobox", {name:"When replying to a running agent"})).toBeVisible();
     }
     await expect(page.locator('[data-slot="chat-queue-shell"]')).toHaveCount(0);
+    expect(await action.json()).toMatchObject({message_id:queuedSent.message_id,task_id:runId,steered:true});
+    await expect(page.getByText("Waiting for delivery to this run",{exact:true})).toBeVisible();
     await page.screenshot({path:testInfo.outputPath("chat-continuous-after-steer.png")});
     await expect(editor).toHaveText("");
     await expect(page.getByText("Message A already sent", {exact:true})).toBeVisible();
     expect((await database.query(`SELECT id FROM chat_message WHERE id=$1`,[originalId])).rows).toHaveLength(1);
+    const received = await api.receiveChatSupplement(runId!);
+    expect(received.message_id).toBe(queuedSent.message_id);
+    await expect(page.getByText("Received by the current run",{exact:true})).toHaveCount(2);
+    await page.screenshot({path:testInfo.outputPath("chat-continuous-received.png")});
+
+    await database.query(`DELETE FROM task_supplement_capability WHERE task_id=$1`,[runId]);
+    await editor.fill("Retry message C");
+    const rejectedResponse = page.waitForResponse(r => r.request().method()==="POST" && r.url().endsWith(`/sessions/${sessionId}/messages`));
+    await editor.press("Enter");
+    expect((await rejectedResponse).status()).toBe(409);
+    await expect(editor).toHaveText("Retry message C");
+    await expect(page.getByText("Message A already sent",{exact:true})).toBeVisible();
+    await database.query(`INSERT INTO task_supplement_capability (task_id,workspace_id,capability) VALUES ($1,$2,'task-supplement-v1')`,[runId,workspace.id]);
+    await page.route(`**/sessions/${sessionId}/messages`,async route => {
+      if (route.request().method()!=="POST") return route.continue();
+      const accepted = await route.fetch();
+      await editor.fill("Unsent draft D typed during C");
+      await route.fulfill({response:accepted});
+    });
+    const retriedResponse = page.waitForResponse(r => r.request().method()==="POST" && r.url().endsWith(`/sessions/${sessionId}/messages`));
+    await page.getByRole("button",{name:"Add to current run",exact:true}).click();
+    expect((await retriedResponse).status()).toBe(201);
+    await page.unroute(`**/sessions/${sessionId}/messages`);
+    await expect(editor).toHaveText("Unsent draft D typed during C");
+    expect((await database.query(`SELECT id FROM chat_message WHERE chat_session_id=$1 AND content='Retry message C'`,[sessionId])).rows).toHaveLength(1);
+    await page.reload({waitUntil:"domcontentloaded"});
+    await expect(editor).toHaveText("Unsent draft D typed during C");
+    await expect(page.getByText("Message A already sent",{exact:true})).toBeVisible();
+    await page.screenshot({path:testInfo.outputPath("chat-draft-preserved.png")});
+    await editor.fill("");
 
     await page.goto(`/${workspace.slug}/settings?tab=shortcuts`);
     const recorder = page.getByRole("button", {name: "Change shortcut for Queue message"});
@@ -120,7 +163,10 @@ test("Enter adds chat input to the exact running turn", async ({ page }, testInf
     expect(await floating.json()).toMatchObject({steered:true,queued:false,task_id:runId});
     expect((await database.query(`SELECT id FROM agent_task_queue WHERE chat_session_id=$1`,[sessionId])).rows).toHaveLength(3);
     await page.screenshot({path:testInfo.outputPath("chat-shortcuts-floating.png")});
-    await testInfo.attach("delivery-identifiers", {body: JSON.stringify({message_id:sent.message_id,task_id:runId,request:response.request().postDataJSON()},null,2),contentType:"application/json"});
+    const receipts = (await database.query(`SELECT message_id,task_id,status,delivered_at FROM chat_task_supplement WHERE chat_session_id=$1 ORDER BY created_at`,[sessionId])).rows;
+    const evidencePath = testInfo.outputPath("delivery-identifiers.json");
+    await writeFile(evidencePath,JSON.stringify({original_message_id:originalId,queued_message_id:queuedSent.message_id,task_id:runId,receipts,request:response.request().postDataJSON()},null,2));
+    await testInfo.attach("delivery-identifiers", {path:evidencePath,contentType:"application/json"});
   } finally {
     if (sessionId) await database.query(`DELETE FROM chat_task_supplement WHERE chat_session_id=$1`,[sessionId]);
     if (runId) await database.query(`DELETE FROM task_supplement_capability WHERE task_id=$1`,[runId]);

@@ -33,6 +33,7 @@ Use `Makefile`, workspace `package.json` files, and `pnpm-workspace.yaml` for cu
 - Use the checkout's managed environment: `make up`, `make status`, `make down`. `make down` preserves data; `make destroy` removes the environment and its data.
 - 网页需要复用桌面配置时，按 [CONTRIBUTING.md](CONTRIBUTING.md) 的桌面后台模式启动；验收时核对网页与桌面的后台地址、工作区 ID 一致。
 - Worktrees share PostgreSQL but have isolated databases/ports. Use the environment scripts and `.env.worktree`; do not copy the main checkout's `.env` or manually create a database through an assumed PostgreSQL instance.
+- 工作树任务的账本、图片、标注和回执等长期私有数据，存入本轮提示提供的固定数据目录，交接时给出绝对路径；恢复和归档位置见 [CONTRIBUTING.md](CONTRIBUTING.md#persistent-private-task-data)。
 - Regenerate sqlc with `make sqlc` after SQL changes.
 - Run the narrowest useful checks while iterating, then broaden when risk warrants it. Report what actually ran and any skipped checks.
 
@@ -121,6 +122,7 @@ Workspace-scoped queries filter by `workspace_id`; membership gates access and `
 
 ## Change and Delivery Rules
 
+- 默认以本地 commit 交付，push 由用户手动执行；仅在用户明确要求本次 push 时推送，历史推送授权不作为后续默认授权。
 - Keep changes scoped; reuse existing patterns.
 - Before adding complexity for a speculative or vanishingly unlikely race or security edge case, explain the concrete failure mode, likelihood, and complexity cost to the user and get their buy-in. Do not silently expand scope for theoretical robustness.
 - Do not add internal compatibility shims, dual writes, fallback paths, or legacy adapters unless requested. This does not relax API response compatibility above.

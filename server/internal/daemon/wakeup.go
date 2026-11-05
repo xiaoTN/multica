@@ -409,7 +409,12 @@ func (d *Daemon) readTaskWakeupMessagesForConnection(conn *websocket.Conn, taskW
 				}
 			}
 			if payload.RuntimeID != "" {
-				d.logger.Debug("task wakeup received", "runtime_id", payload.RuntimeID, "task_id", payload.TaskID)
+				d.logger.Debug("已收到运行唤醒通知", "runtime_id", payload.RuntimeID, "task_id", payload.TaskID)
+			}
+			// 运行结束和取消会发出不带 task_id 的容量提示。
+			// 同时唤醒状态检查，让旧运行及时退出，而不是继续执行到下一次五秒轮询。
+			if payload.TaskID == "" && d.reconcile != nil {
+				d.reconcile.broadcast()
 			}
 			signalTaskWakeup(taskWakeups, payload.RuntimeID)
 		case protocol.EventDaemonTaskSupplementAvailable:

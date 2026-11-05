@@ -47,24 +47,16 @@ func backendResumeContinuityNotice(task Task) string {
 	return sessionContinuityNoticeFor(task)
 }
 
-// perTurnContextBlocks renders the run-scoped context blocks that used to live
-// in the runtime brief (CLAUDE.md / AGENTS.md).
-//
-// Every value here changes from one run to the next on the same issue — the
-// authorization human differs between runs, the continuity notice is
-// true of one run and false of the next, and the connected-app set is resolved
-// per run from the runtime MCP overlay. Claude Code loads the brief into
-// messages[0], ahead of the entire conversation, so rendering these there threw
-// away the prompt cache for the whole history on every resume. Appending them
-// to the per-turn user message puts them after the cached prefix instead, where
-// changing them costs only this turn's own tokens (MUL-5377).
-//
-// Returns "" when none of the blocks apply.
+// 每轮的身份、授权人和连接应用都可能变化，必须放在本轮消息里，
+// 避免续接会话沿用旧状态，也避免改写整段历史之前的提示词缓存。
+// 没有适用内容时返回空字符串。
 func perTurnContextBlocks(task Task, opts promptOpts) string {
 	var b strings.Builder
+	b.WriteString(buildTaskAuthenticationBlock(task))
 	b.WriteString(buildSharedLocalDirectoryBlock(opts.sharedLocalDirectory))
 	b.WriteString(buildWorktreeReplayConflictBlock(opts.worktreeReplayConflicts))
 	b.WriteString(buildWorktreeBranchBlock(opts.worktreeBranch, opts.worktreeBase))
+	b.WriteString(buildWorktreeDataBlock(opts.worktreeDataDirs))
 	if task.PriorSessionResumeUnavailable {
 		b.WriteString(sessionContinuityNoticeFor(task))
 	}
@@ -74,6 +66,14 @@ func perTurnContextBlocks(task Task, opts promptOpts) string {
 	b.WriteString(buildProjectWorkflowBlock(task))
 	b.WriteString(buildParentIssueBlock(task))
 	return b.String()
+}
+
+// 运行身份跟随本轮消息更新；会话和工作目录可以复用，旧凭证不能复用。
+func buildTaskAuthenticationBlock(task Task) string {
+	if task.ID == "" || strings.TrimSpace(task.AuthToken) == "" {
+		return ""
+	}
+	return fmt.Sprintf("[本轮运行身份]\n本轮 task_id：%s。运行时已通过环境变量 MULTICA_TASK_ID 和 MULTICA_TOKEN 注入本轮专用身份，凭证值不得输出或保存。\n上一轮的凭证拒绝报错和停止要求仅对上一轮生效，不能据此判断本轮也无法执行。需要访问平台时，直接使用当前环境运行 multica CLI；先完成所需的只读查询，再根据本轮实际响应判断是否受阻。不要复用历史凭证，也不要改用个人、profile 或成员凭证。如果本轮请求也被拒绝，停止本轮的平台操作并如实报告。\n\n", task.ID)
 }
 
 // buildParentIssueBlock points a sub-issue's run at its parent. The sub-issue's
@@ -142,6 +142,25 @@ type promptOpts struct {
 	worktreeReplayConflicts []string
 	worktreeBranch          string
 	worktreeBase            string
+	worktreeDataDirs        []string
+}
+
+// WithWorktreeDataDirs 提供全部本地仓库的长期数据入口，供本轮和后续任务交接。
+func WithWorktreeDataDirs(dirs []string) PromptOption {
+	return func(o *promptOpts) { o.worktreeDataDirs = dirs }
+}
+
+func buildWorktreeDataBlock(dirs []string) string {
+	if len(dirs) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("## 长期私有数据\n\n工作树是临时目录，任务收尾后会删除。后续仍要使用的账本、图片、标注、调用回执和实验状态应直接存入以下固定目录，并在交接中记录绝对路径：\n\n")
+	for _, dir := range dirs {
+		fmt.Fprintf(&b, "- `%s`\n", dir)
+	}
+	b.WriteString("\n这些目录不进 Git，也不随任务自动清理；同一任务会话的不同智能体共用入口。临时工作树内被 Git 忽略的文件会在收尾前移入对应目录的 archives/<运行标识>/files/，manifest.json 记录原目录和相对路径。接续任务先检查这里已有的账本和回执，再决定恢复步骤；交接给其他任务时提供此固定位置，保留累计用量和原始证据。\n\n")
+	return b.String()
 }
 
 // PromptOption tunes per-turn prompt copy with run-scoped context.

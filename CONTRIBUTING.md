@@ -312,6 +312,19 @@ without changing other worktrees' effective settings. The files are standard Git
 config; older daemons leave them in place, but do not refresh identity defaults
 or protect newly created worktrees. No pushed commit history is rewritten.
 
+### Persistent Private Task Data
+
+本地目录以 worktree 模式运行任务时，代码由 Git 分支交付，工作树在收尾后删除。
+后续仍要使用的账本、图片、标注、调用回执和实验状态，直接存入每轮提示中给出的长期私有目录。
+目录位于仓库公共 Git 目录的 `multica-data/` 下，按工作区和任务会话隔离；同一会话换智能体或换工作树，入口不变。
+这些文件不会提交或推送，也不会被任务目录的自动清理删除。
+
+收尾前，工作树中被 Git 忽略的文件会移入该目录的 `archives/<运行标识>/files/`，
+同级 `manifest.json` 保留原工作树位置和相对路径。每轮分别保留，避免覆盖旧数据；
+如果保存失败，任务收尾报错并保留原工作树。归档包含 Git 忽略的依赖和缓存，清理空间时由持有者核对用途后处理。
+后续任务先检查已有账本和回执，再决定如何接续；跨任务交接应提供长期目录的绝对路径。
+已经被旧版本删除的文件需要从备份或原始来源恢复，新版本不能直接找回它们。
+
 ### Removing a Worktree
 
 Git does not provide a `pre-worktree-remove` hook. Use the repository wrapper

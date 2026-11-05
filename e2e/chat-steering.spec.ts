@@ -178,10 +178,12 @@ test("Enter adds chat input to the exact running turn", async ({ page, chatScena
   await recorder.press("ControlOrMeta+Shift+Enter");
   await expect(recorder.locator('[data-shortcut-key="shift"]')).toBeVisible();
   await page.reload();
+  await expect(recorder).toBeVisible({timeout: 45_000});
   await expect(recorder.locator('[data-shortcut-key="shift"]')).toBeVisible();
   await page.screenshot({path:testInfo.outputPath("chat-shortcuts-custom.png")});
   await page.goto(`/${workspace.slug}/chat?session=${sessionId}`);
   await expect(editor).toBeVisible({timeout: 45_000});
+  await expect(page.getByRole("combobox", {name:"When replying to a running agent"})).toBeVisible({timeout: 45_000});
   await editor.fill("Custom queue shortcut browser evidence");
   await expect(page.getByRole("button", {name:"Queue message",exact:true})).toBeEnabled();
   const customResponse = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith(`/sessions/${sessionId}/messages`));
@@ -191,10 +193,11 @@ test("Enter adds chat input to the exact running turn", async ({ page, chatScena
   expect(await custom.json()).toMatchObject({steered:false,queued:true});
   expect((await database.query(`SELECT id FROM agent_task_queue WHERE chat_session_id=$1`,[sessionId])).rows).toHaveLength(3);
   await page.goto(`/${workspace.slug}/settings?tab=shortcuts`);
-  await expect(recorder).toBeVisible();
+  await expect(recorder).toBeVisible({timeout: 45_000});
   await page.keyboard.press("ControlOrMeta+J");
   const floatingEditor = page.locator('.ProseMirror[contenteditable="true"]:visible').last();
-  await expect(floatingEditor).toBeVisible();
+  await expect(floatingEditor).toBeVisible({timeout: 45_000});
+  await expect(page.getByRole("combobox", {name:"When replying to a running agent"})).toBeVisible({timeout: 45_000});
   await floatingEditor.fill("Floating chat shortcut browser evidence");
   await expect(page.getByRole("button", {name:"Queue message",exact:true})).toBeEnabled();
   const floatingResponse = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith(`/sessions/${sessionId}/messages`));

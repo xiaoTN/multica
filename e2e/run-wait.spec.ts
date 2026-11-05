@@ -2,7 +2,7 @@ import "./env";
 import { expect, test } from "@playwright/test";
 import pg from "pg";
 import { mkdir, writeFile } from "node:fs/promises";
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { TestApiClient } from "./fixtures";
 
 test.use({ launchOptions: { executablePath: process.env.MULTICA_E2E_CHROMIUM_EXECUTABLE } });
@@ -91,10 +91,16 @@ test("reports admission evidence and updates the real run card through preparati
       const followUp=(await db.query(`INSERT INTO agent_task_queue (agent_id,runtime_id,issue_id,status) VALUES ($1,$2,$3,'queued') RETURNING id`,[agentId,runtimeId,issue.id])).rows[0].id;
       const observer=claimed.tasks.find((r:{id:string})=>r.id===queuedId);
       const cliEnv={...process.env,MULTICA_SERVER_URL:base,MULTICA_WORKSPACE_ID:workspace.id,MULTICA_TOKEN:observer.auth_token,MULTICA_AGENT_ID:agentId,MULTICA_TASK_ID:queuedId};
-      const output=execFileSync(process.env.RUN_WAIT_CLI,["issue","runs",issue.id,"--output","json"],{env:cliEnv,encoding:"utf8"});
+      const invokeCLI=(format:string)=>{
+        const result=spawnSync(process.env.RUN_WAIT_CLI!,["issue","runs",issue.id,"--output",format],{env:cliEnv,encoding:"utf8"});
+        const detail=`${result.error?.message ?? ""} ${result.stderr ?? ""}`.replaceAll(observer.auth_token,"[redacted]");
+        expect(result.status,`CLI signal=${result.signal}: ${detail}`).toBe(0);
+        return result.stdout;
+      };
+      const output=invokeCLI("json");
       const cliRun=JSON.parse(output).find((r:{id:string})=>r.id===followUp);
       expect(cliRun.wait_diagnostic).toMatchObject({code:"previous_run",scope:"issue_agent",blocking_task_id:queuedId});
-      const table=execFileSync(process.env.RUN_WAIT_CLI,["issue","runs",issue.id,"--output","table"],{env:cliEnv,encoding:"utf8"});
+      const table=invokeCLI("table");
       expect(table).toContain("等待上一条运行结束");
       await writeFile(`${process.env.RUN_WAIT_EVIDENCE_DIR ?? testInfo.outputDir}/run-wait-cli.json`,JSON.stringify({id:cliRun.id,status:cliRun.status,wait_diagnostic:cliRun.wait_diagnostic},null,2));
       await writeFile(`${process.env.RUN_WAIT_EVIDENCE_DIR ?? testInfo.outputDir}/run-wait-cli.txt`,table);

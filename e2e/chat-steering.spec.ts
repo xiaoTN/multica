@@ -86,6 +86,20 @@ test("Enter adds chat input to the exact running turn", async ({ page }, testInf
     expect(custom.request().postDataJSON()).toMatchObject({mode:"queue",expected_task_id:runId});
     expect(await custom.json()).toMatchObject({steered:false,queued:true});
     expect((await database.query(`SELECT id FROM agent_task_queue WHERE chat_session_id=$1`,[sessionId])).rows).toHaveLength(3);
+    await page.goto(`/${workspace.slug}/settings?tab=shortcuts`);
+    await expect(recorder).toBeVisible();
+    await page.keyboard.press("ControlOrMeta+J");
+    const floatingEditor = page.locator('.ProseMirror[contenteditable="true"]:visible').last();
+    await expect(floatingEditor).toBeVisible();
+    await floatingEditor.fill("Floating chat shortcut browser evidence");
+    await expect(page.getByRole("button", {name:"Queue message",exact:true})).toBeEnabled();
+    const floatingResponse = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith(`/sessions/${sessionId}/messages`));
+    await floatingEditor.press("Enter");
+    const floating = await floatingResponse;
+    expect(floating.request().postDataJSON()).toMatchObject({mode:"steer",expected_task_id:runId});
+    expect(await floating.json()).toMatchObject({steered:true,queued:false,task_id:runId});
+    expect((await database.query(`SELECT id FROM agent_task_queue WHERE chat_session_id=$1`,[sessionId])).rows).toHaveLength(3);
+    await page.screenshot({path:testInfo.outputPath("chat-shortcuts-floating.png")});
     await testInfo.attach("delivery-identifiers", {body: JSON.stringify({message_id:sent.message_id,task_id:runId,request:response.request().postDataJSON()},null,2),contentType:"application/json"});
   } finally {
     if (sessionId) await database.query(`DELETE FROM chat_task_supplement WHERE chat_session_id=$1`,[sessionId]);

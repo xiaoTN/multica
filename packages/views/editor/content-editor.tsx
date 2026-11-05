@@ -58,6 +58,7 @@ import type { MentionItem } from "./extensions/mention-suggestion";
 import type { IssueIdentifierResolver } from "./extensions/issue-identifier-autolink";
 import type { BuiltinCommandSuggestionOptions } from "./extensions/slash-command-suggestion";
 import { createEditorExtensions } from "./extensions";
+import { useDirectoryDropWarning } from "./use-directory-drop-warning";
 import {
   uploadAndInsertFile,
   insertUploadPlaceholder,
@@ -282,7 +283,7 @@ interface ContentEditorRef {
    *  `afterAccepted: "blur"` on surfaces where a send ends the turn, so the
    *  composer stops reading as "still writing". */
   blur: () => void;
-  uploadFile: (file: File) => void;
+  uploadFile: (file: File | string) => void;
   /** True when file uploads are still in progress. */
   hasActiveUploads: () => boolean;
   /**
@@ -402,6 +403,9 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     const onBlurRef = useRef(onBlur);
     const onReadyRef = useRef(onReady);
     const onUploadingChangeRef = useRef(onUploadingChange);
+    const warnDirectory = useDirectoryDropWarning();
+    const onDirectoryDropRef = useRef(warnDirectory);
+    onDirectoryDropRef.current = warnDirectory;
     const onUploadFileRef = useRef<
       ((file: File, uploadId: string) => Promise<UploadResult | null>) | undefined
     >(undefined);
@@ -612,6 +616,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
         queryClient,
         onSubmitRef,
         onUploadFileRef,
+        onDirectoryDropRef,
         pasteAsFileThresholdRef,
         disableMentions,
         mentionMode,
@@ -955,7 +960,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
       blur: () => {
         editor?.commands.blur();
       },
-      uploadFile: (file: File) => {
+      uploadFile: (file: File | string) => {
         if (!editor || !onUploadFileRef.current) return;
         const endPos = editor.state.doc.content.size;
         uploadAndInsertFile(editor, file, onUploadFileRef.current, endPos);

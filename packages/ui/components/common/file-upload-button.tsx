@@ -9,6 +9,8 @@ import { cn } from "@multica/ui/lib/utils";
 interface FileUploadButtonProps {
   /** Called with the selected File — caller handles upload. */
   onSelect: (file: File) => void;
+  onPick?: () => void;
+  label?: string;
   disabled?: boolean;
   className?: string;
   size?: "sm" | "default";
@@ -17,6 +19,8 @@ interface FileUploadButtonProps {
 
 function FileUploadButton({
   onSelect,
+  onPick,
+  label,
   disabled,
   className,
   size = "default",
@@ -24,7 +28,7 @@ function FileUploadButton({
 }: FileUploadButtonProps) {
   const { t } = useTranslation("ui");
   const inputRef = useRef<HTMLInputElement>(null);
-  const attachLabel = t(($) => $.attach_file);
+  const attachLabel = label ?? t(($) => $.attach_file);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -44,7 +48,7 @@ function FileUploadButton({
         type="button"
         variant="ghost"
         size={buttonSize}
-        onClick={() => inputRef.current?.click()}
+        onClick={onPick ?? (() => inputRef.current?.click())}
         disabled={disabled}
         label={attachLabel}
         className={cn("text-muted-foreground", className)}

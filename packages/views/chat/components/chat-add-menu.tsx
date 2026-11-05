@@ -16,11 +16,12 @@ import {
 import type { Project } from "@multica/core/types";
 import { ProjectIcon } from "../../projects/components/project-icon";
 import { useT } from "../../i18n";
+import { useLocalFilePicker } from "../../editor/use-local-file-picker";
 
 interface ChatAddMenuProps {
   /** Called with each selected file — the caller routes it through the
    *  editor's upload extension, same path as paste / drag-drop. */
-  onSelectFile?: (file: File) => void;
+  onSelectFile?: (file: File | string) => void;
   projects?: Project[];
   projectId?: string | null;
   onSelectProject?: (projectId: string | null) => void;
@@ -46,7 +47,9 @@ export function ChatAddMenu({
   disabled,
 }: ChatAddMenuProps) {
   const { t } = useT("chat");
+  const { t: tEditor } = useT("editor");
   const inputRef = useRef<HTMLInputElement>(null);
+  const pickLocal = useLocalFilePicker((file) => onSelectFile?.(file), true);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -74,9 +77,9 @@ export function ChatAddMenu({
         />
         <DropdownMenuContent align="start" side="top" sideOffset={6}>
           {onSelectFile && (
-            <DropdownMenuItem onClick={() => inputRef.current?.click()}>
+            <DropdownMenuItem onClick={pickLocal ?? (() => inputRef.current?.click())}>
               <ImageIcon />
-              {t(($) => $.input.upload_file)}
+              {pickLocal ? tEditor(($) => $.upload.select_local) : t(($) => $.input.upload_file)}
             </DropdownMenuItem>
           )}
           {onSelectProject && (

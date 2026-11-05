@@ -430,8 +430,8 @@ var kindMessages = map[ErrorKind][2]string{
 		"登录已过期或尚未登录。请运行 `multica login` 重新登录。自托管或非 OAuth 场景请联系管理员获取有效凭证。",
 	},
 	KindTaskTokenRejected: {
-		"This task token was rejected and is no longer usable. Stop here: do not retry, and do not fall back to a profile or member credential, because anything done with one would run as that person rather than as this task. Only the runtime that started this task can supply a valid task token.",
-		"这个 task token 已被拒绝，不再可用。请到此为止：不要重试，也不要改用 profile 或成员凭证 —— 用它们执行的任何操作都会以那个成员的身份运行，而不是以这次 task 的身份运行。只有启动这次 task 的运行时才能提供有效的 task token。",
+		"This task token was rejected and is no longer usable. Stop here for this execution only: do not retry with this token, and do not fall back to a profile or member credential. Only the runtime can supply a task token. A later execution receives its own credential from the runtime; this rejection does not establish that the later execution's token is invalid. Use that execution's environment and judge its own API response.",
+		"这个 task token 已被拒绝，不再可用。停止平台操作的要求仅限本轮：不要重试这个 token，也不要改用 profile 或成员凭证。只有运行时才能提供 task token。下一轮会由运行时注入自己的凭证，不能用本次报错判断下一轮的凭证也不可用；下一轮应使用当轮环境，并根据当轮 API 的实际响应判断。",
 	},
 	KindForbidden: {
 		"You do not have permission to access this resource. Check that you are in the right workspace, or ask an administrator to grant access.",

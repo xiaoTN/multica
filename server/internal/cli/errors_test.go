@@ -481,22 +481,9 @@ func TestErrorKindString(t *testing.T) {
 	}
 }
 
-// TestFormatErrorRejectedTaskTokenDoesNotSuggestAnotherCredential is GH #7522
-// in one assertion. The generic 401 copy tells the reader to run `multica
-// login` or ask an administrator for valid credentials. That is right for a
-// person and wrong for an agent: after its task token stopped working mid-run,
-// one read the daemon owner's profile PAT and kept working under the member's
-// identity. A 401 on a task token has to read as "stop", never as "find a
-// working credential".
-//
-// It must also not guess why the token was rejected. A terminal task is the
-// usual cause, but the same 401 covers a malformed token, one sent to the wrong
-// server, and one dropped by an unrelated cleanup — so a message that asserts
-// the task finished is a claim the CLI cannot make.
-//
-// The wiring — which requests are marked task-scoped in the first place — is
-// covered by TestHTTPErrorTaskScopedFollowsTheRequestNotTheClient, which drives
-// a real client instead of hand-building the error.
+// 运行凭证被拒绝时必须停止本轮，不能引导智能体改用拥有者的个人凭证。
+// 401 本身无法区分过期、撤销或错误值，也不能据此阻止运行时新启动的下一轮。
+// 请求是否携带运行凭证，由 TestHTTPErrorTaskScopedFollowsTheRequestNotTheClient 覆盖。
 func TestFormatErrorRejectedTaskTokenDoesNotSuggestAnotherCredential(t *testing.T) {
 	httpErr := &HTTPError{Method: "GET", Path: "/api/me", StatusCode: 401, TaskScoped: true}
 
@@ -506,12 +493,12 @@ func TestFormatErrorRejectedTaskTokenDoesNotSuggestAnotherCredential(t *testing.
 		refuted []string
 	}{
 		{"en_US.UTF-8",
-			[]string{"rejected", "no longer usable", "Stop here", "do not retry",
+			[]string{"rejected", "no longer usable", "Stop here", "do not retry", "this execution only", "later execution",
 				"do not fall back to a profile or member credential"},
-			// No sign-in advice, and no claim about a cause it cannot verify.
+			// 不建议登录，也不猜测无法从响应确认的原因。
 			[]string{"multica login", "administrator", "cancelled", "finished", "terminal state"}},
 		{"zh_CN.UTF-8",
-			[]string{"已被拒绝", "不再可用", "不要重试", "不要改用 profile 或成员凭证"},
+			[]string{"已被拒绝", "不再可用", "不要重试", "不要改用 profile 或成员凭证", "仅限本轮", "下一轮"},
 			[]string{"multica login", "管理员", "已完成", "被取消", "终态"}},
 	} {
 		withLang(t, tc.lang)
@@ -528,9 +515,7 @@ func TestFormatErrorRejectedTaskTokenDoesNotSuggestAnotherCredential(t *testing.
 		}
 	}
 
-	// Glossary: an agent execution is `task` in Chinese; 任务 is the product
-	// entity a user files (an issue). Writing this message with 任务 would say
-	// the user's issue was rejected. See conventions.zh.mdx.
+	// 这里保留凭证的内部 task 名称，避免把用户提交的“任务”误说成被拒绝。
 	withLang(t, "zh_CN.UTF-8")
 	zh := FormatError(httpErr, false)
 	if strings.Contains(zh, "任务") {
@@ -540,14 +525,14 @@ func TestFormatErrorRejectedTaskTokenDoesNotSuggestAnotherCredential(t *testing.
 		t.Errorf("zh copy dropped the `task` term entirely: %q", zh)
 	}
 
-	// A member 401 is unchanged: that really is an expired login.
+	// 成员身份的 401 仍保留登录提示。
 	withLang(t, "en_US.UTF-8")
 	member := FormatError(&HTTPError{Method: "GET", Path: "/api/me", StatusCode: 401}, false)
 	if !strings.Contains(member, "multica login") {
 		t.Errorf("a member 401 should still point at sign-in, got %q", member)
 	}
 
-	// Exit classification is unchanged — still an auth failure.
+	// 退出码仍表示鉴权失败。
 	if got := ExitCodeFor(httpErr); got != ExitAuth {
 		t.Errorf("ExitCodeFor(rejected task token) = %d, want %d", got, ExitAuth)
 	}

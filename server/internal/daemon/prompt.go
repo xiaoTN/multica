@@ -47,21 +47,12 @@ func backendResumeContinuityNotice(task Task) string {
 	return sessionContinuityNoticeFor(task)
 }
 
-// perTurnContextBlocks renders the run-scoped context blocks that used to live
-// in the runtime brief (CLAUDE.md / AGENTS.md).
-//
-// Every value here changes from one run to the next on the same issue — the
-// authorization human differs between runs, the continuity notice is
-// true of one run and false of the next, and the connected-app set is resolved
-// per run from the runtime MCP overlay. Claude Code loads the brief into
-// messages[0], ahead of the entire conversation, so rendering these there threw
-// away the prompt cache for the whole history on every resume. Appending them
-// to the per-turn user message puts them after the cached prefix instead, where
-// changing them costs only this turn's own tokens (MUL-5377).
-//
-// Returns "" when none of the blocks apply.
+// 每轮的身份、授权人和连接应用都可能变化，必须放在本轮消息里，
+// 避免续接会话沿用旧状态，也避免改写整段历史之前的提示词缓存。
+// 没有适用内容时返回空字符串。
 func perTurnContextBlocks(task Task, opts promptOpts) string {
 	var b strings.Builder
+	b.WriteString(buildTaskAuthenticationBlock(task))
 	b.WriteString(buildSharedLocalDirectoryBlock(opts.sharedLocalDirectory))
 	b.WriteString(buildWorktreeReplayConflictBlock(opts.worktreeReplayConflicts))
 	b.WriteString(buildWorktreeBranchBlock(opts.worktreeBranch, opts.worktreeBase))
@@ -74,6 +65,14 @@ func perTurnContextBlocks(task Task, opts promptOpts) string {
 	b.WriteString(buildProjectWorkflowBlock(task))
 	b.WriteString(buildParentIssueBlock(task))
 	return b.String()
+}
+
+// 运行身份跟随本轮消息更新；会话和工作目录可以复用，旧凭证不能复用。
+func buildTaskAuthenticationBlock(task Task) string {
+	if task.ID == "" || strings.TrimSpace(task.AuthToken) == "" {
+		return ""
+	}
+	return fmt.Sprintf("[本轮运行身份]\n本轮 task_id：%s。运行时已通过环境变量 MULTICA_TASK_ID 和 MULTICA_TOKEN 注入本轮专用身份，凭证值不得输出或保存。\n上一轮的凭证拒绝报错和停止要求仅对上一轮生效，不能据此判断本轮也无法执行。需要访问平台时，直接使用当前环境运行 multica CLI；先完成所需的只读查询，再根据本轮实际响应判断是否受阻。不要复用历史凭证，也不要改用个人、profile 或成员凭证。如果本轮请求也被拒绝，停止本轮的平台操作并如实报告。\n\n", task.ID)
 }
 
 // buildParentIssueBlock points a sub-issue's run at its parent. The sub-issue's

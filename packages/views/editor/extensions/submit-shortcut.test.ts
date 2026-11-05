@@ -7,6 +7,7 @@ import {
   createShortcutChord,
   configureShortcutPlatform,
   useShortcutStore,
+  type ShortcutActionId,
 } from "@multica/core/shortcuts";
 import { PatchedListItem } from "./list-item";
 import {
@@ -39,8 +40,9 @@ function press(editor: Editor, keyboardEvent: KeyboardEvent): boolean {
 
 function makeEditor(
   content: Content,
-  onSubmit: () => void,
+  onSubmit: (actionId?: ShortcutActionId) => void,
   extraExtensions: AnyExtension[] = [],
+  submitActions?: readonly ShortcutActionId[],
 ) {
   return new Editor({
     element: document.createElement("div"),
@@ -49,10 +51,10 @@ function makeEditor(
       StarterKit.configure({ listItem: false }),
       PatchedListItem,
       Markdown,
-      createSubmitShortcutExtension(() => {
-        onSubmit();
+      createSubmitShortcutExtension((actionId) => {
+        onSubmit(actionId);
         return true;
-      }),
+      }, submitActions ? () => submitActions : undefined),
       ...extraExtensions,
     ],
   });
@@ -62,6 +64,51 @@ const editors: Editor[] = [];
 
 beforeEach(() => {
   configureShortcutPlatform("windows");
+});
+
+describe("chat submit shortcuts", () => {
+  it.each(["macos", "windows"] as const)("routes Enter and the primary Enter separately on %s", (platform) => {
+    configureShortcutPlatform(platform);
+    const submitted: (ShortcutActionId | undefined)[] = [];
+    const editor = makeEditor("hello", (id) => submitted.push(id), [], ["chatSteer", "chatQueue"]);
+    editors.push(editor);
+    editor.commands.focus("end");
+    expect(press(editor, event("Enter"))).toBe(true);
+    expect(press(editor, event("Enter", platform === "macos" ? { metaKey: true } : { ctrlKey: true }))).toBe(true);
+    expect(submitted).toEqual(["chatSteer", "chatQueue"]);
+    expect(press(editor, event("Enter", { shiftKey: true }))).toBe(true);
+    expect(submitted).toHaveLength(2);
+    expect(editor.state.doc.childCount).toBe(2);
+  });
+
+  it("applies customized and disabled bindings without recreating the editor", () => {
+    const submitted: (ShortcutActionId | undefined)[] = [];
+    const editor = makeEditor("hello", (id) => submitted.push(id), [], ["chatSteer", "chatQueue"]);
+    editors.push(editor);
+    editor.commands.focus("end");
+    useShortcutStore.getState().setShortcut("chatSteer", createShortcutChord("Enter", { primary: true, shift: true }));
+    useShortcutStore.getState().setShortcut("chatQueue", null);
+    expect(press(editor, event("Enter", { ctrlKey: true, shiftKey: true }))).toBe(true);
+    press(editor, event("Enter", { ctrlKey: true }));
+    expect(submitted).toEqual(["chatSteer"]);
+    press(editor, event("Enter"));
+    expect(editor.state.doc.childCount).toBe(2);
+    expect(submitted).toEqual(["chatSteer"]);
+  });
+
+  it("does not send either action while confirming IME input or repeating a key", () => {
+    const submitted: (ShortcutActionId | undefined)[] = [];
+    const editor = makeEditor("hello", (id) => submitted.push(id), [], ["chatSteer", "chatQueue"]);
+    editors.push(editor);
+    const composingEnter = event("Enter");
+    Object.defineProperty(composingEnter, "isComposing", { value: true });
+    const safariCommit = event("Enter", { ctrlKey: true });
+    Object.defineProperty(safariCommit, "keyCode", { value: 229 });
+    press(editor, composingEnter);
+    press(editor, safariCommit);
+    press(editor, event("Enter", { repeat: true }));
+    expect(submitted).toEqual([]);
+  });
 });
 
 afterEach(() => {

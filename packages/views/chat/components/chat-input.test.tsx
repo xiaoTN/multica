@@ -1,6 +1,7 @@
 import { cloneElement, forwardRef, useEffect, useRef, useImperativeHandle } from "react";
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import type { ReplyAnnotation } from "@multica/core/drafts/reply-annotation";
 import { I18nProvider } from "@multica/core/i18n/react";
 import type { UploadResult } from "@multica/core/hooks/use-file-upload";
 import type { DraftUpload } from "@multica/core/drafts";
@@ -226,6 +227,8 @@ vi.mock("@multica/core/chat", () => {
     selectedAgentId: "agent-1",
     inputDrafts: {} as Record<string, string>,
     inputDraftAttachments: {} as Record<string, unknown[]>,
+    inputDraftAnnotations: {} as Record<string, ReplyAnnotation[]>,
+    setInputDraftAnnotations: vi.fn(),
     setInputDraft: vi.fn(),
     appendToInputDraft: vi.fn(),
     setInputDraftAttachments: vi.fn(),
@@ -382,6 +385,34 @@ function element(props: Partial<React.ComponentProps<typeof ChatInput>>) {
   );
 }
 
+describe("ChatInput shortcut intent", () => {
+  it.each([
+    ["chatSteer", "after_run", "steer"],
+    ["chatQueue", "steer", "after_run"],
+  ] as const)("uses %s over the selected %s mode", async (action, selectedMode, expectedMode) => {
+    const { onSend } = renderInput({ isRunning: true, allowSubmitWhileRunning: true, sendMode: selectedMode });
+    fireEvent.change(screen.getByTestId("editor"), { target: { value: "shortcut intent" } });
+    expect(editorProps.last?.submitActions).toEqual(["chatSteer", "chatQueue"]);
+    act(() => (editorProps.last?.onSubmit as (action: string) => void)(action));
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith(
+      "shortcut intent", undefined, expect.any(Function), [], expectedMode,
+    ));
+  });
+
+  it("does not leave a rejected shortcut mode on a later button click", async () => {
+    const onSend = vi.fn<ChatInputOnSend>().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    renderInput({ onSend, isRunning: true, allowSubmitWhileRunning: true, sendMode: "steer" });
+    fireEvent.change(screen.getByTestId("editor"), { target: { value: "keep this draft" } });
+    act(() => (editorProps.last?.onSubmit as (action: string) => void)("chatQueue"));
+    await waitFor(() => expect(screen.getByRole("button", { name: "preferences.running_agent_reply.steer" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "preferences.running_agent_reply.steer" }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(2));
+    expect(onSend.mock.calls[0]?.[4]).toBe("after_run");
+    expect(onSend.mock.calls[1]?.[4]).toBeUndefined();
+    expect(onSend.mock.calls[1]?.[0]).toBe("keep this draft");
+  });
+});
+
 // MUL-4864: an uncreated chat has ONE draft per workspace. `selectedAgentId`
 // picks where the first send goes; it does not own the draft. Switching agent
 // mid-compose must therefore change nothing the user can see.
@@ -535,6 +566,7 @@ describe("ChatInput conversation starter send", () => {
       undefined,
       expect.any(Function),
       [],
+      undefined,
     );
   });
 
@@ -1299,6 +1331,7 @@ describe("ChatInput async send", () => {
       undefined,
       expect.any(Function),
       [],
+      undefined,
     );
     expect(useChatStore.getState().clearInputDraft).not.toHaveBeenCalled();
     await waitFor(() => expect(sendButton!).toBeDisabled());
@@ -1337,7 +1370,7 @@ describe("ChatInput async send", () => {
       await Promise.resolve();
     });
 
-    expect(onSend).toHaveBeenCalledWith("retry me", undefined, expect.any(Function), []);
+    expect(onSend).toHaveBeenCalledWith("retry me", undefined, expect.any(Function), [], undefined);
     expect(useChatStore.getState().clearInputDraft).not.toHaveBeenCalled();
   });
 
@@ -1384,6 +1417,7 @@ describe("ChatInput async send", () => {
       ["att-persisted"],
       expect.any(Function),
       [attachment],
+      undefined,
     );
   });
 });

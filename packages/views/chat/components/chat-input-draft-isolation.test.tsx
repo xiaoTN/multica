@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import type { ReplyAnnotation } from "@multica/core/drafts/reply-annotation";
 import { I18nProvider } from "@multica/core/i18n/react";
 import type { UploadResult } from "@multica/core/hooks/use-file-upload";
 import enCommon from "../../locales/en/common.json";
@@ -159,6 +160,8 @@ vi.mock("@multica/core/chat", () => {
     selectedAgentId: "agent-1",
     inputDrafts: {} as Record<string, string>,
     inputDraftAttachments: {} as Record<string, unknown[]>,
+    inputDraftAnnotations: {} as Record<string, ReplyAnnotation[]>,
+    setInputDraftAnnotations: vi.fn(),
     setInputDraft: vi.fn((key: string, value: string) => {
       state.inputDrafts[key] = value;
     }),
@@ -318,7 +321,7 @@ describe("ChatInput draft isolation across a composer switch (real debounce)", (
 
     rerender(element({ onSend, conversationStarterRequest: { id: 1, content: prompt } }));
     await act(async () => {});
-    expect(onSend).toHaveBeenCalledWith(prompt, undefined, expect.any(Function), []);
+    expect(onSend).toHaveBeenCalledWith(prompt, undefined, expect.any(Function), [], undefined);
     expect(store().inputDrafts["__new__"]).toBe(prompt);
   });
 

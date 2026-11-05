@@ -73,7 +73,7 @@ export function KeyboardShortcutsTab() {
     });
   }, [query, t]);
 
-  const groups: readonly ShortcutCategory[] = ["general", "navigation"];
+  const groups: readonly ShortcutCategory[] = ["general", "chat", "navigation"];
 
   const capture = (actionId: ShortcutActionId, event: React.KeyboardEvent) => {
     event.preventDefault();
@@ -266,7 +266,7 @@ function ShortcutRow({
   const { t } = useT("settings");
   const label = t(($) => $.shortcuts.actions[action.id].label);
   // Keep descriptions in the search index, but only show non-obvious behavior.
-  const description = ["openSearch", "toggleRightSidebar", "archiveInboxItem", "send"].includes(action.id)
+  const description = ["openSearch", "toggleRightSidebar", "archiveInboxItem", "send", "chatSteer", "chatQueue"].includes(action.id)
     ? t(($) => $.shortcuts.actions[action.id].description)
     : undefined;
   const errorText = error?.kind === "reserved"
@@ -285,7 +285,7 @@ function ShortcutRow({
     <SettingsRow
       label={label}
       description={
-        action.id === "send" && isPlainShortcut(shortcut, "Enter") ? (
+        ["send", "chatSteer", "chatQueue"].includes(action.id) && isPlainShortcut(shortcut, "Enter") ? (
           <>
             {description}
             <span className="mt-1 block text-brand">

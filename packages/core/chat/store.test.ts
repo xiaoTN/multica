@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it } from "vitest";
 import { createChatStore, DRAFT_NEW_SESSION } from "./store";
 import type { StorageAdapter } from "../types";
@@ -401,5 +402,37 @@ describe("chat store — draft upload ops", () => {
     expect(store.getState().inputDrafts["session-2"]).toBe(
       "[doc.pdf](/api/attachments/att-2/download)",
     );
+  });
+});
+
+describe("chat annotation drafts", () => {
+  const annotation = {
+    id: "annotation-1", sourceCommentId: "message-1", sourceActorName: "Mika",
+    quote: "Selected text", note: "My opinion", start: 0, prefix: "", suffix: "",
+  };
+
+  it("persists annotations separately from body and attachments, isolated by session", () => {
+    const storage = memStorage();
+    const store = createChatStore({ storage });
+    store.getState().setInputDraft("session-a", "Original draft");
+    store.getState().setInputDraftAnnotations("session-a", [annotation]);
+    store.getState().setInputDraftAnnotations("session-b", [{ ...annotation, note: "Other session" }]);
+    const reloaded = createChatStore({ storage });
+    expect(reloaded.getState().inputDrafts["session-a"]).toBe("Original draft");
+    expect(reloaded.getState().inputDraftAnnotations["session-a"]).toEqual([annotation]);
+    reloaded.getState().clearInputDraft("session-a");
+    expect(createChatStore({ storage }).getState().inputDraftAnnotations).toEqual({
+      "session-b": [{ ...annotation, note: "Other session" }],
+    });
+    reloaded.getState().clearInputDraft("session-b");
+    expect(storage.getItem("multica:chat:draft-annotations")).toBeNull();
+  });
+
+  it("discards malformed persisted annotation records", () => {
+    const storage = memStorage();
+    storage.setItem("multica:chat:draft-annotations", JSON.stringify({
+      valid: [annotation], invalid: [null, { id: "broken" }],
+    }));
+    expect(createChatStore({ storage }).getState().inputDraftAnnotations).toEqual({ valid: [annotation] });
   });
 });

@@ -22,6 +22,16 @@ beforeEach(() => {
 });
 
 describe("chat send routing", () => {
+  it.each([
+    ["steer", "after_run", "queue"],
+    ["after_run", "steer", "steer"],
+  ] as const)("uses the shortcut mode over the %s preference", async (preferred, shortcutMode, expectedMode) => {
+    useCommentComposerStore.setState({ runningAgentReply: preferred });
+    const { result } = renderHook(() => useChatSend("chat"));
+    await result.current.sendMessage("chat", "shortcut", undefined, "exact-run", shortcutMode);
+    expect(api.sendChatMessage).toHaveBeenCalledWith("chat", "shortcut", undefined, { mode: expectedMode, expectedTaskId: "exact-run" });
+    expect(result.current.sendMode).toBe(preferred);
+  });
   it("finds the running turn before sending while the initial cache is empty", async () => {
     queries.fetchQuery.mockResolvedValue({ task_id: "server-running-turn", status: "running", supports_queue: true });
     const { result } = renderHook(() => useChatSend("chat"));

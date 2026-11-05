@@ -40,6 +40,28 @@ describe("KeyboardShortcutsTab", () => {
     expect(within(rightSidebarRecorder).getByTitle("/")).toHaveTextContent("/");
   });
 
+  it("shows the chat defaults on macOS and records a custom queue shortcut", () => {
+    configureShortcutPlatform("macos");
+    renderWithI18n(<KeyboardShortcutsTab />);
+    const steer = screen.getByRole("button", { name: "Change shortcut for Send or interject" });
+    const queue = screen.getByRole("button", { name: "Change shortcut for Queue message" });
+    expect(within(steer).getByTitle("Enter")).toBeInTheDocument();
+    expect(within(queue).getByTitle("Command")).toBeInTheDocument();
+    expect(within(queue).getByTitle("Enter")).toBeInTheDocument();
+    fireEvent.click(queue);
+    fireEvent.keyDown(queue, { key: "Enter", metaKey: true, shiftKey: true });
+    expect(getShortcut("chatQueue")).toEqual(createShortcutChord("Enter", { primary: true, shift: true }));
+    fireEvent.click(steer);
+    fireEvent.keyDown(steer, { key: "Enter", metaKey: true, shiftKey: true });
+    expect(screen.getByRole("alert")).toHaveTextContent("Already used by Queue message.");
+    expect(getShortcut("chatSteer")).toEqual(createShortcutChord("Enter"));
+    fireEvent.keyDown(steer, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Disable Queue message shortcut" }));
+    expect(getShortcut("chatQueue")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Reset Queue message" }));
+    expect(getShortcut("chatQueue")).toEqual(createShortcutChord("Enter", { primary: true }));
+  });
+
   it("shows the fixed numbered tab shortcuts", () => {
     renderWithI18n(<KeyboardShortcutsTab />);
 

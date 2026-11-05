@@ -61,6 +61,7 @@ import {
   useUpdateChatSession,
 } from "@multica/core/chat/mutations";
 import { useChatStore } from "@multica/core/chat";
+import type { RunningAgentReply } from "@multica/core/issues/stores/comment-composer-store";
 import { upsertChatMessageToCaches } from "@multica/core/chat/message-cache";
 import { chatQuickActionsPendingOptions } from "@multica/core/chat/queries";
 import { useQuickActionsPendingTimeout } from "@multica/core/chat/use-quick-actions-pending-timeout";
@@ -70,9 +71,10 @@ import { useChatDraftRestore } from "./use-chat-draft-restore";
 import { useChatTaskActions } from "./use-chat-task-actions";
 import { useChatInputFocus } from "./use-chat-input-focus";
 import { useChatOpenReveal } from "./use-chat-open-reveal";
+import type { ChatMessageListRef } from "./chat-message-list";
 import { ChatWindowMessages } from "./chat-window-messages";
 import { useChatSend } from "./use-chat-send";
-import { ChatInput, type ChatInputRef } from "./chat-input";
+import { ChatInput } from "./chat-input";
 import { ChatQueue } from "./chat-queue";
 import { EmptyState } from "./chat-empty-state";
 import { SessionRenameInput } from "./session-rename-input";
@@ -97,7 +99,7 @@ const apiLogger = createLogger("chat.api");
 
 
 export function ChatWindow() {
-  const inputRef = useRef<ChatInputRef>(null);
+  const messageListRef = useRef<ChatMessageListRef>(null);
   const { t } = useT("chat");
   const wsId = useWorkspaceId();
   const isOpen = useChatStore((s) => s.isOpen);
@@ -409,6 +411,7 @@ export function ChatWindow() {
       attachmentIds?: string[],
       commitInput?: (options?: { extraDraftKeys?: string[]; clearEditor?: boolean }) => void,
       draftAttachments: Attachment[] = [],
+      modeOverride?: RunningAgentReply,
     ): Promise<boolean> => {
       if (!activeAgent) {
         apiLogger.warn("sendChatMessage skipped: no active agent");
@@ -487,7 +490,7 @@ export function ChatWindow() {
       // the draft for retry (ChatInput never cleared it).
       let result;
       try {
-        result = await sendMessage(sessionId, finalContent, attachmentIds, pendingTaskId);
+        result = await sendMessage(sessionId, finalContent, attachmentIds, pendingTaskId, modeOverride);
         if (!result) return false;
       } catch (err) {
         apiLogger.error("sendChatMessage.error", { sessionId, err });
@@ -896,7 +899,8 @@ export function ChatWindow() {
       <AnimatePresence initial={false}>
         {isOpen && (
           <ChatWindowMessages
-            onReplyAnnotation={(quote, note) => inputRef.current?.addReplyAnnotation(quote, note)}
+            ref={messageListRef}
+            annotationDraftKey={activeSessionId ?? undefined}
             sessionId={activeSessionId}
             pendingTask={pendingTask}
             pendingTaskLoading={pendingTaskLoading}
@@ -961,9 +965,9 @@ export function ChatWindow() {
        *  agent has been archived (read-only); locked out entirely when there's
        *  no agent (the EmptyState above carries the CTA). */}
       <ChatInput
+        onEditAnnotation={(id) => messageListRef.current?.editAnnotation(id) ?? false}
         sendMode={sendMode}
         onSendModeChange={setSendMode}
-        ref={inputRef}
         onSend={handleSend}
         restoreDraftRequest={restoreDraftRequest}
         conversationStarterRequest={conversationStarterRequest}

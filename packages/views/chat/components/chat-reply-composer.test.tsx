@@ -1,4 +1,3 @@
-import { createRef } from "react";
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -7,8 +6,10 @@ import { createChatStore, registerChatStore, useChatStore } from "@multica/core/
 import type { Editor } from "@tiptap/core";
 import enCommon from "../../locales/en/common.json";
 import enChat from "../../locales/en/chat.json";
+import enIssues from "../../locales/en/issues.json";
+import type { ReplyAnnotation } from "@multica/core/drafts/reply-annotation";
 import enEditor from "../../locales/en/editor.json";
-import { ChatInput, type ChatInputRef } from "./chat-input";
+import { ChatInput } from "./chat-input";
 
 const live = vi.hoisted(() => ({ editor: null as Editor | null }));
 // Exercise the real Tiptap document and debounce with only the extensions
@@ -36,56 +37,75 @@ beforeEach(() => {
   useChatStore.getState().setActiveSession("session-a");
 });
 
-function fixture(disabled = false) {
-  const ref = createRef<ChatInputRef>();
-  const onSend = vi.fn();
+function annotation(id: string, note = "First opinion"): ReplyAnnotation {
+  return { id, sourceCommentId: id, sourceActorName: "Mika", quote: `Quoted ${id}`,
+    note, start: 0, prefix: "", suffix: "" };
+}
+
+function fixture(onSend = vi.fn()) {
+  const onEditAnnotation = vi.fn(() => true);
   render(
-    <I18nProvider locale="en" resources={{ en: { common: enCommon, chat: enChat, editor: enEditor } }}>
+    <I18nProvider locale="en" resources={{ en: { common: enCommon, chat: enChat, editor: enEditor, issues: enIssues } }}>
       <QueryClientProvider client={new QueryClient()}>
-        <ChatInput ref={ref} onSend={onSend} disabled={disabled} />
+        <ChatInput onSend={onSend} onEditAnnotation={onEditAnnotation} />
       </QueryClientProvider>
     </I18nProvider>,
   );
-  return { ref, onSend };
+  return { onSend, onEditAnnotation };
+}
+
+function stage(...items: ReplyAnnotation[]) {
+  act(() => useChatStore.getState().setInputDraftAnnotations("session-a", items));
 }
 
 describe("chat reply composer with real Tiptap", () => {
-  it("preserves unflushed typing, appends consecutive quotes, and sends the quote with a reply outside it", async () => {
-    const { ref, onSend } = fixture();
+  it("keeps consecutive annotations compact without touching live typing, and composes them only on send", async () => {
+    const { onSend, onEditAnnotation } = fixture();
     await waitFor(() => expect(live.editor).not.toBeNull());
-    act(() => {
-      live.editor!.commands.insertContent("Unsaved draft");
-      ref.current!.addReplyAnnotation("First **literal** line\nSecond line", "First **opinion**\nwith details");
-    });
+    act(() => live.editor!.commands.insertContent("Unsaved draft"));
+    stage(annotation("first"), annotation("second", "Second opinion"));
     expect(onSend).not.toHaveBeenCalled();
-    expect(useChatStore.getState().inputDrafts["session-a"]).toContain("Unsaved draft");
-    expect(document.querySelector("blockquote")?.textContent).toBe("First **literal** line\nSecond line");
-    expect(live.editor!.state.selection.$from.parent.type.name).toBe("paragraph");
-    expect(live.editor!.state.selection.$from.depth).toBe(1);
-    act(() => {
-      live.editor!.commands.insertContent("First reply");
-      ref.current!.addReplyAnnotation("Another quote", "Second note");
-      live.editor!.commands.insertContent("Final reply");
-    });
-    expect(document.querySelectorAll("blockquote")).toHaveLength(2);
-    expect(document.querySelectorAll("blockquote")[1]?.textContent).toBe("Another quote");
+    expect(live.editor!.getText()).toBe("Unsaved draft");
+    expect(document.querySelector(".tiptap blockquote")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "2 annotations" }));
+    expect(await screen.findByText("Quoted first")).toBeVisible();
+    expect(screen.getByText("Second opinion")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Edit annotation 1" }));
+    await waitFor(() => expect(onEditAnnotation).toHaveBeenCalledWith("first"));
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() => expect(onSend).toHaveBeenCalledOnce());
-    const sent = onSend.mock.calls[0]![0];
-    expect(sent).toContain("Unsaved draft");
-    expect(sent).toContain("> First");
-    expect(sent).toContain("> Second line");
-    expect(sent).toContain("First **opinion**");
-    expect(sent).toContain("Second note");
-    expect(sent).toContain("First reply");
-    expect(sent).toContain("Final reply");
+    expect(onSend.mock.calls[0]![0]).toContain("> Quoted first");
+    expect(onSend.mock.calls[0]![0]).toContain("Second opinion");
+    expect(onSend.mock.calls[0]![0]).toContain("Unsaved draft");
+    expect(useChatStore.getState().inputDraftAnnotations["session-a"]).toBeUndefined();
   });
 
-  it("ignores additions to a disabled composer", async () => {
-    const { ref } = fixture(true);
+  it("sends annotations with an empty body, retaining the compact draft after rejection", async () => {
+    const onSend = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    fixture(onSend);
     await waitFor(() => expect(live.editor).not.toBeNull());
-    act(() => ref.current!.addReplyAnnotation("Do not insert", "Note"));
-    expect(document.querySelector("blockquote")).toBeNull();
-    expect(useChatStore.getState().inputDrafts).toEqual({});
+    stage(annotation("first"));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledOnce());
+    expect(screen.getByRole("button", { name: "1 annotation" })).toBeVisible();
+    expect(live.editor!.getText()).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "1 annotation" })).toBeNull());
+  });
+
+  it("preserves annotations edited or added while a send is pending", async () => {
+    let accept!: (value: boolean) => void;
+    const onSend = vi.fn(() => new Promise<boolean>((resolve) => { accept = resolve; }));
+    fixture(onSend);
+    await waitFor(() => expect(live.editor).not.toBeNull());
+    stage(annotation("first"));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledOnce());
+    stage(annotation("first", "Revised while sending"), annotation("second"));
+    act(() => live.editor!.commands.insertContent("New body"));
+    await act(async () => accept(true));
+    expect(useChatStore.getState().inputDraftAnnotations["session-a"]).toHaveLength(2);
+    expect(live.editor!.getText()).toBe("New body");
   });
 });

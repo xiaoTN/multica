@@ -228,7 +228,8 @@
     "send_enter_hint": "Shift+Enter 可插入段落、继续列表，或在代码块中换行。",
     "categories": {
       "general": "常规",
-      "navigation": "导航"
+      "navigation": "导航",
+      "chat": "聊天"
     },
     "actions": {
       "openSearch": {
@@ -318,6 +319,14 @@
       "goSettings": {
         "label": "前往设置",
         "description": "打开工作区设置。"
+      },
+      "chatSteer": {
+        "label": "发送或插话",
+        "description": "补充到当前运行；没有运行时正常发送。"
+      },
+      "chatQueue": {
+        "label": "排队发送",
+        "description": "当前运行结束后开始；没有运行时正常发送。"
       }
     },
     "fixed": {

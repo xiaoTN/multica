@@ -230,7 +230,8 @@
     "send_enter_hint": "Maj+Entrée insère un paragraphe, poursuit une liste, ou ajoute un saut de ligne dans un bloc de code.",
     "categories": {
       "general": "Général",
-      "navigation": "Navigation"
+      "navigation": "Navigation",
+      "chat": "Discussion"
     },
     "actions": {
       "openSearch": {
@@ -320,6 +321,14 @@
       "goSettings": {
         "label": "Aller aux paramètres",
         "description": "Ouvrir les paramètres de l'espace de travail."
+      },
+      "chatSteer": {
+        "label": "Envoyer ou intervenir",
+        "description": "Ajouter à l’exécution en cours. Envoyer normalement si aucune exécution n’est active."
+      },
+      "chatQueue": {
+        "label": "Mettre en attente",
+        "description": "Démarrer après l’exécution en cours. Envoyer normalement si aucune exécution n’est active."
       }
     },
     "fixed": {

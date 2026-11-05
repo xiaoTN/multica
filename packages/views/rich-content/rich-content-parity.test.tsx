@@ -1,3 +1,4 @@
+import { createChatStore, registerChatStore } from "@multica/core/chat";
 /**
  * Five-surface RichContent parity (MUL-4922).
  *
@@ -29,10 +30,11 @@ vi.mock("../issues/hooks", () => ({
 vi.mock("../i18n", async () => {
   const editor = (await import("../locales/en/editor.json")).default;
   const chat = (await import("../locales/en/chat.json")).default;
+  const issues = (await import("../locales/en/issues.json")).default;
   return {
     useT: (ns?: string) => ({
       t: (select: (bundle: Record<string, unknown>) => string) =>
-        select((ns === "chat" ? chat : editor) as Record<string, unknown>),
+        select((ns === "chat" ? chat : ns === "issues" ? issues : editor) as Record<string, unknown>),
     }),
     useTimeAgo: () => "just now",
   };
@@ -503,3 +505,8 @@ describe("semantic parity beyond Mermaid", () => {
     expect(mermaidRenderMock).not.toHaveBeenCalled();
   });
 });
+
+// Chat selection annotations use the same app-owned store as the composer.
+beforeEach(() => registerChatStore(createChatStore({ storage: {
+  getItem: () => null, setItem: () => {}, removeItem: () => {},
+} })));

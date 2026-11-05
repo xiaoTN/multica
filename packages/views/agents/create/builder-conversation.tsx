@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Loader2, MessageSquare, X } from "@multica/ui/icons";
 import {
   applyDraftModelChange,
@@ -164,6 +164,7 @@ export function BuilderConversation({
   onDismissError?: () => void;
 }) {
   const messageListRef = useRef<ChatMessageListRef>(null);
+  const [revealedSessionId, setRevealedSessionId] = useState<string | null>(null);
   const { t } = useT("agents");
   const { t: tModals } = useT("modals");
   const pending = !!pendingTask?.task_id;
@@ -204,6 +205,7 @@ export function BuilderConversation({
         <ChatMessageList
           ref={messageListRef}
           annotationDraftKey={draftKey}
+          onRevealed={() => setRevealedSessionId(sessionId)}
           messages={messages}
           pendingTask={pendingTask}
           availability={runtimeOnline ? "online" : "offline"}
@@ -264,7 +266,7 @@ export function BuilderConversation({
       ) : null}
 
       <ChatInput
-        onEditAnnotation={loading ? undefined : (id) => messageListRef.current?.editAnnotation(id) ?? false}
+        onEditAnnotation={loading || revealedSessionId !== sessionId ? undefined : (id) => messageListRef.current?.editAnnotation(id) ?? false}
         onSend={(content, _attachmentIds, commitInput) =>
           onSend(content, commitInput)
         }

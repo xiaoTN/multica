@@ -58,6 +58,7 @@ import { useRegisterCommandBarContext } from "../search/register-context";
  */
 export function ChatPage() {
   const messageListRef = useRef<ChatMessageListRef>(null);
+  const [revealedSessionId, setRevealedSessionId] = useState<string | null>(null);
   const { t } = useT("chat");
   const { pathname, searchParams, push, replace } = useNavigation();
   const workspaceSlug = useRequiredWorkspaceSlug();
@@ -326,6 +327,7 @@ export function ChatPage() {
         <ChatMessageList
           ref={messageListRef}
           annotationDraftKey={c.activeSessionId ?? undefined}
+          onRevealed={() => setRevealedSessionId(c.activeSessionId)}
           key={c.activeSessionId}
           messages={c.messages}
           pendingTask={c.pendingTask}
@@ -388,7 +390,7 @@ export function ChatPage() {
       />
 
       <ChatInput
-        onEditAnnotation={c.showSkeleton ? undefined : (id) => messageListRef.current?.editAnnotation(id) ?? false}
+        onEditAnnotation={c.showSkeleton || revealedSessionId !== c.activeSessionId ? undefined : (id) => messageListRef.current?.editAnnotation(id) ?? false}
         sendMode={c.sendMode}
         onSendModeChange={c.setSendMode}
         onSend={c.handleSend}

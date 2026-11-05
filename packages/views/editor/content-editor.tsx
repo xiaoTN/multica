@@ -302,7 +302,6 @@ interface ContentEditorRef {
    */
   insertMarkdownAtEnd: (markdown: string) => boolean;
   /** Append a literal quote and Markdown note without moving focus from the source. */
-  insertReplyAnnotationAtEnd: (quote: string, note: string) => boolean;
   /**
    * Draw a placeholder for an upload this document is not showing yet, and
    * report whether it landed.
@@ -980,16 +979,6 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
           contentType: "markdown",
         });
         return true;
-      },
-      insertReplyAnnotationAtEnd: (quote: string, note: string) => {
-        if (!editor || editor.isDestroyed) return false;
-        return editor.chain().insertContentAt(editor.state.doc.content.size, [
-          { type: "blockquote", content: [{
-            type: "paragraph", content: [{ type: "text", text: quote }],
-          }] },
-          ...(editor.markdown!.parse(note).content ?? []),
-          { type: "paragraph" },
-        ]).run();
       },
       flushPendingUpdate: () => {
         // No armed timer = nothing typed since the last emit. The editor is

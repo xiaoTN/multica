@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { Virtuoso, type Components, type VirtuosoHandle } from "react-virtuoso";
@@ -57,13 +57,19 @@ import {
   splitTimeline,
 } from "../lib/copy-text";
 import { stripChatQuickActionsProtocol } from "../lib/quick-actions";
+import { useChatStore } from "@multica/core/chat";
 import { useChatReplySelection } from "./use-chat-reply-selection";
 import { useT } from "../../i18n";
 
 // ─── Public component ────────────────────────────────────────────────────
 
+export interface ChatMessageListRef {
+  editAnnotation: (id: string) => Promise<boolean>;
+}
+
 interface ChatMessageListProps {
-  onReplyAnnotation?: (quote: string, note: string) => void;
+  ref?: Ref<ChatMessageListRef>;
+  annotationDraftKey?: string;
   /** Pause bottom-stick effects while a closing floating window fades out. */
   active?: boolean;
   /**
@@ -188,7 +194,8 @@ const LIST_COMPONENTS: Components<ChatRenderItem, ChatListContext> = {
 };
 
 export function ChatMessageList({
-  onReplyAnnotation,
+  ref,
+  annotationDraftKey,
   active = true,
   revealKey = null,
   onRevealed,
@@ -205,7 +212,10 @@ export function ChatMessageList({
   onRegenerateQuickActions,
   quickActionsPendingMessageId = null,
 }: ChatMessageListProps) {
-  const { containerRef, captureProps, popup } = useChatReplySelection(active ? onReplyAnnotation : undefined);
+  const { cardRef: containerRef, captureProps, popup, editAnnotation } = useChatReplySelection(
+    annotationDraftKey ?? "", messages.map((message) => ({ id: message.id, name: message.role })),
+    active && !!annotationDraftKey,
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollContainerEl, setScrollContainerEl] = useState<HTMLDivElement | null>(null);
   const setScrollContainerRef = useCallback((node: HTMLDivElement | null) => {
@@ -220,7 +230,7 @@ export function ChatMessageList({
   const pinToLiveEnd = useCallback(() => {
     virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end" });
   }, []);
-  const { isFollowing, onContentHeightChanged, hasReachedLiveEnd } = useStickToBottom(
+  const { isFollowing, disengage, onContentHeightChanged, hasReachedLiveEnd } = useStickToBottom(
     scrollContainerEl,
     pinToLiveEnd,
     active,
@@ -301,6 +311,26 @@ export function ChatMessageList({
   }, [messages, hasLive, pendingTaskId]);
 
   const firstIndex = renderItems.length > 0 ? firstItemIndex : 0;
+  useImperativeHandle(ref, () => ({
+    editAnnotation: async (id) => {
+      disengage();
+      if (editAnnotation(id, true)) return true;
+      const annotation = useChatStore.getState().inputDraftAnnotations[annotationDraftKey ?? ""]?.find((a) => a.id === id);
+      const index = annotation && renderItems.findIndex((item) => item.kind === "message" && item.message.id === annotation.sourceCommentId);
+      if (index === undefined || index < 0 || !containerRef.current) return false;
+      const card = containerRef.current;
+      // Virtuoso mounts offscreen source rows after scrolling to their index.
+      return new Promise<boolean>((resolve) => {
+        const observer = new MutationObserver(() => {
+          if (!editAnnotation(id, true)) return;
+          clearTimeout(timeout); observer.disconnect(); resolve(true);
+        });
+        const timeout = setTimeout(() => { observer.disconnect(); resolve(false); }, 1500);
+        observer.observe(card, { childList: true, subtree: true });
+        virtuosoRef.current?.scrollToIndex({ index: firstIndex + index, align: "center" });
+      });
+    },
+  }));
   const liveEndKey = renderItems[renderItems.length - 1]?.key ?? null;
 
   const listContext: ChatListContext = {

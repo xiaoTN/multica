@@ -1,7 +1,7 @@
 "use client";
 
-import type { ReactNode, Ref } from "react";
-import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { TriangleAlert } from "@multica/ui/icons";
 import { toast } from "sonner";
 import { cn } from "@multica/ui/lib/utils";
@@ -31,6 +31,8 @@ import type { Attachment, Project } from "@multica/core/types";
 import { ProjectPicker } from "../../projects/components/project-picker";
 import { ClearablePillButton } from "../../common/pill-button";
 import { useT } from "../../i18n";
+import { composeAnnotatedReply, EMPTY_REPLY_ANNOTATIONS } from "@multica/core/drafts/reply-annotation";
+import { ReplyAnnotations } from "../../common/reply-annotations";
 
 const logger = createLogger("chat.ui");
 const EMPTY_UPLOADS: DraftUpload[] = [];
@@ -56,12 +58,8 @@ function isAttachmentReferenced(content: string, attachment: Attachment): boolea
   return attachmentReferenceUrls(attachment).some((url) => content.includes(url));
 }
 
-export interface ChatInputRef {
-  addReplyAnnotation: (quote: string, note: string) => void;
-}
-
 interface ChatInputProps {
-  ref?: Ref<ChatInputRef>;
+  onEditAnnotation?: (id: string) => boolean | Promise<boolean>;
   onSend: (
     content: string,
     attachmentIds: string[] | undefined,
@@ -154,7 +152,7 @@ interface ChatInputProps {
 }
 
 export function ChatInput({
-  ref,
+  onEditAnnotation,
   onSend,
   restoreDraftRequest,
   conversationStarterRequest,
@@ -234,7 +232,8 @@ export function ChatInput({
   // restored or parked one, or any persisted draft the user typed in another
   // session) still enables the button. A false enable costs nothing: handleSend
   // reads the live editor and bails when it is empty.
-  const hasNothingToSend = isEmpty && !inputDraft.trim();
+  const annotations = useChatStore((s) => s.inputDraftAnnotations[draftKey] ?? EMPTY_REPLY_ANNOTATIONS);
+  const hasNothingToSend = isEmpty && !inputDraft.trim() && !annotations.length;
   const appliedRestoreIdRef = useRef<string | null>(null);
   const appliedConversationStarterIdRef = useRef<number | null>(null);
   const editorKey = editorKeyOverride ?? CHAT_COMPOSER_EDITOR_KEY;
@@ -279,16 +278,6 @@ export function ChatInput({
     },
     [setInputDraft, setInputDraftAttachments],
   );
-  useImperativeHandle(ref, () => ({
-    addReplyAnnotation: (quote, note) => {
-      if (disabled || noAgent || !quote.trim() || !note.trim() || editorDraftKeyRef.current !== draftKey) return;
-      const editor = editorRef.current;
-      if (!editor?.insertReplyAnnotationAtEnd(quote, note)) return;
-      const markdown = editor.flushPendingUpdate() ?? editor.getMarkdown();
-      commitDraft(draftKey, markdown);
-      setIsEmpty(false);
-    },
-  }), [disabled, noAgent, draftKey, commitDraft]);
 
   // Submit gate. `uploading` disables the SubmitButton the instant an upload
   // starts; `isBlocked()` is re-read inside handleSend for the paths that skip
@@ -416,7 +405,7 @@ export function ChatInput({
     // pending and this effect re-runs on every draft change, so the restore
     // lands as soon as the user sends or clears what they were typing. Marking
     // it done here would strand it for the rest of this composer's life.
-    if (inputDraft.trim() || draftUploads.length > 0) {
+    if (inputDraft.trim() || annotations.length > 0 || draftUploads.length > 0) {
       logger.debug("input.restore waiting: draft has content", {
         draftKey,
         restoreId: restoreDraftRequest.id,
@@ -435,6 +424,7 @@ export function ChatInput({
   }, [
     draftKey,
     inputDraft,
+    annotations.length,
     draftUploads,
     onRestoreDraftApplied,
     restoreDraftRequest,
@@ -464,6 +454,8 @@ export function ChatInput({
 
   const { submitting, submit } = useComposerSubmit({
     editorRef,
+    normalize: (raw) => composeAnnotatedReply(raw,
+      useChatStore.getState().inputDraftAnnotations[draftKey] ?? EMPTY_REPLY_ANNOTATIONS),
     uploadGate: gate,
     containerRef: composerRef,
     // Chat keeps the caret in the box after a send (the next turn is typed in
@@ -516,6 +508,7 @@ export function ChatInput({
       const pendingFlush = editorRef.current?.flushPendingUpdate?.();
       if (pendingFlush != null) commitDraft(editorDraftKeyRef.current, pendingFlush);
       const draftValueAtSend = useChatStore.getState().inputDrafts[keyAtSend];
+      const annotationsAtSend = useChatStore.getState().inputDraftAnnotations[keyAtSend] ?? EMPTY_REPLY_ANNOTATIONS;
       let committed = false;
       const commitInput = (options?: { extraDraftKeys?: string[]; clearEditor?: boolean }) => {
         if (committed) return;
@@ -546,7 +539,10 @@ export function ChatInput({
         // The sent draft's data is cleared only when untouched — the message
         // is on its way, but a draft replaced since the snapshot is NEWER work
         // and must not resurface as collateral.
+        const remainingAnnotations = (useChatStore.getState().inputDraftAnnotations[keyAtSend] ?? EMPTY_REPLY_ANNOTATIONS)
+          .filter((annotation) => !annotationsAtSend.some((sent) => sent.id === annotation.id && sent.note === annotation.note));
         if (untouched) clearInputDraft(keyAtSend);
+        useChatStore.getState().setInputDraftAnnotations(keyAtSend, remainingAnnotations);
         for (const key of options?.extraDraftKeys ?? []) {
           if (key !== keyAtSend) clearInputDraft(key);
         }
@@ -596,6 +592,7 @@ export function ChatInput({
     const draft = useChatStore.getState();
     if (
       editorRef.current?.getMarkdown().trim() ||
+      (draft.inputDraftAnnotations[draftKey]?.length ?? 0) > 0 ||
       (draft.inputDrafts[draftKey] ?? "").trim() ||
       (draft.inputDraftAttachments[draftKey]?.length ?? 0) > 0
     ) {
@@ -672,6 +669,15 @@ export function ChatInput({
         noAgent && "cursor-not-allowed",
       )}
     >
+      {annotations.length > 0 && <div className={CHAT_COLUMN}>
+        <ReplyAnnotations annotations={annotations} disabled={!!disabled || !!noAgent || submitting}
+          onEditAnnotation={onEditAnnotation}
+          onRemoveAnnotation={(id) => {
+            const store = useChatStore.getState();
+            store.setInputDraftAnnotations(draftKey, (store.inputDraftAnnotations[draftKey] ?? [])
+              .filter((annotation) => annotation.id !== id));
+          }} />
+      </div>}
       <div
         data-slot="chat-input-surface"
         {...(uploadEnabled ? dropZoneProps : {})}

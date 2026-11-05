@@ -63,6 +63,31 @@ function recordPosts(page: Page, path: string) {
   return posts;
 }
 
+async function editSourceMarker(page: Page, note: string, surface: string) {
+  const marker = page.locator('[data-reply-annotation-overlay] > button[aria-label="Edit annotation 1"]');
+  await expect(marker).toBeVisible();
+  const hit = await marker.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const target = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+    return { matches: element === target || element.contains(target), target: target?.outerHTML.slice(0, 500) };
+  });
+  await writeFile(test.info().outputPath(`${surface}-marker-hit.json`), JSON.stringify(hit, null, 2));
+  await marker.click();
+  const input = page.getByRole("textbox", { name: "Comment", exact: true });
+  await expect(input).toBeFocused();
+  await page.screenshot({ path: test.info().outputPath(`${surface}-marker-edit.png`) });
+  await input.fill(note);
+  await page.keyboard.press("Enter");
+}
+
+async function topCommentEditor(page: Page) {
+  // The lazy shell unmounts once ready; retain its owning card as the scope.
+  await page.getByTestId("comment-composer-shell").locator("..").evaluate((card) => {
+    card.setAttribute("data-annotation-test-composer", "top");
+  });
+  return page.locator('[data-annotation-test-composer="top"] .ProseMirror[contenteditable="true"]');
+}
+
 test("chat page and floating chat hand off focus without submitting the confirmation key", async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const { api, workspace } = await setup(page);
@@ -136,6 +161,10 @@ test("chat page and floating chat hand off focus without submitting the confirma
     await page.keyboard.down("Enter");
     await page.keyboard.up("Enter");
     expect(posts).toHaveLength(0);
+    await editSourceMarker(page, "修订中文批注意见", "chat");
+    await expect(editor).toBeFocused();
+    await expect(page.getByRole("button", { name: "1 annotation", exact: true })).toBeVisible();
+    expect(posts).toHaveLength(0);
     const sent = page.waitForResponse(r => r.url().endsWith(path) && r.request().method() === "POST");
     await page.keyboard.press("Enter");
     expect((await sent).status()).toBe(201);
@@ -144,6 +173,7 @@ test("chat page and floating chat hand off focus without submitting the confirma
     expect(posts[0]!.body.content).toContain("Preserved chat body");
     expect(posts[0]!.body.content).toContain("Source sentence for annotation focus");
     expect(posts[0]!.body.content).toContain("中文批注意见");
+    expect(posts[0]!.body.content).toContain("修订中文批注意见");
     await page.screenshot({ path: testInfo.outputPath("chat-second-enter.png") });
     // No daemon exists in this environment. Complete the fixture task so the
     // next send exercises ordinary annotation-only sending.
@@ -160,12 +190,7 @@ test("chat page and floating chat hand off focus without submitting the confirma
     await nextNote.fill("Second floating annotation");
     await page.keyboard.press("Enter");
     await expect(editor).toBeFocused();
-    await page.getByRole("button", { name: "2 annotations", exact: true }).click();
-    await page.getByRole("dialog", { name: "2 annotations", exact: true })
-      .getByRole("button", { name: "Edit annotation 1", exact: true }).click();
-    const edit = page.getByRole("textbox", { name: "Comment", exact: true });
-    await edit.fill("Revised floating annotation");
-    await page.keyboard.press("Enter");
+    await editSourceMarker(page, "Revised floating annotation", "floating");
     await expect(editor).toBeFocused();
     await expect(page.getByRole("button", { name: "2 annotations", exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath("floating-first-enter.png") });
@@ -202,13 +227,18 @@ test("board annotations focus their own top-level comment or thread reply and re
     await page.goto(`/${workspace.slug}/issues/${issue.id}`);
     const description = page.locator(`[data-comment-content="description:${issue.id}"] p`);
     await expect(description).toBeVisible({ timeout: 45_000 });
+    const topEditor = await topCommentEditor(page);
     const topNote = await openNote(page, description, true);
     await topNote.fill("Top-level annotation");
     await page.keyboard.press("Enter");
-    const topEditor = page.locator('.ProseMirror:has([data-placeholder="Leave a comment..."])');
     await expect(topEditor).toBeFocused();
     expect(posts).toHaveLength(0);
     await topEditor.fill("Preserved comment body");
+    await editSourceMarker(page, "Revised Top-level annotation", "board-comment");
+    await expect(topEditor).toBeFocused();
+    await expect(topEditor).toContainText("Preserved comment body");
+    await expect(page.getByRole("button", { name: "1 annotation", exact: true })).toBeVisible();
+    expect(posts).toHaveLength(0);
     await page.screenshot({ path: testInfo.outputPath("board-comment-first-enter.png") });
     const commentSent = page.waitForResponse(r => r.url().endsWith(path) && r.request().method() === "POST");
     await page.keyboard.press("Enter");
@@ -216,6 +246,7 @@ test("board annotations focus their own top-level comment or thread reply and re
     expect(posts).toHaveLength(1);
     expect(posts[0]!.body.content).toContain("Preserved comment body");
     expect(posts[0]!.body.content).toContain("Top-level annotation");
+    expect(posts[0]!.body.content).toContain("Revised Top-level annotation");
     expect(posts[0]!.body.parent_id).toBeFalsy();
     const threadSource = page.locator(`[data-comment-content="${root.id}"] p`);
     const replyNote = await openNote(page, threadSource);
@@ -228,6 +259,11 @@ test("board annotations focus their own top-level comment or thread reply and re
     await replyEditor.fill("Preserved reply body");
     await page.keyboard.press("Shift+Enter");
     await page.keyboard.type("Second line");
+    expect(posts).toHaveLength(1);
+    await editSourceMarker(page, "Revised Thread annotation", "board-reply");
+    await expect(replyEditor).toBeFocused();
+    await expect(replyEditor).toContainText("Preserved reply body");
+    await expect(thread.getByRole("button", { name: "1 annotation", exact: true })).toBeVisible();
     expect(posts).toHaveLength(1);
     await page.screenshot({ path: testInfo.outputPath("board-reply-first-enter.png") });
     // Reject at the request boundary, then retry the same real editor draft.
@@ -250,6 +286,7 @@ test("board annotations focus their own top-level comment or thread reply and re
     expect(posts).toHaveLength(3);
     expect(posts[2]!.body).toMatchObject({ parent_id: root.id });
     expect(posts[2]!.body.content).toContain("Thread annotation");
+    expect(posts[2]!.body.content).toContain("Revised Thread annotation");
     expect(posts[2]!.body.content).toContain("Preserved reply body");
     expect(posts[2]!.body.content).toContain("Second line");
     await page.screenshot({ path: testInfo.outputPath("board-reply-second-enter.png") });
@@ -262,6 +299,7 @@ test("board annotations focus their own top-level comment or thread reply and re
     await recorder.press("ControlOrMeta+Enter");
     await page.reload();
     await page.goto(`/${workspace.slug}/issues/${issue.id}`);
+    await topCommentEditor(page);
     const customNote = await openNote(page, description, true);
     await customNote.fill("Explicit send preference annotation");
     await page.keyboard.press("Enter");
@@ -275,6 +313,7 @@ test("board annotations focus their own top-level comment or thread reply and re
     await page.goto(`/${workspace.slug}/settings?tab=shortcuts`);
     await page.getByRole("button", { name: "Disable Send shortcut", exact: true }).click();
     await page.goto(`/${workspace.slug}/issues/${issue.id}`);
+    await topCommentEditor(page);
     const disabledNote = await openNote(page, description, true);
     await disabledNote.fill("Disabled send shortcut annotation");
     await page.keyboard.press("Enter");

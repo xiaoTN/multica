@@ -2,12 +2,17 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithI18n } from "../../test/i18n";
 import en from "../../locales/en/projects.json";
 import type { ProjectResource } from "@multica/core/types";
 import { toast } from "sonner";
 
-const { createResource } = vi.hoisted(() => ({ createResource: vi.fn().mockResolvedValue({}) }));
+const { createResource, updateResource, deleteResource } = vi.hoisted(() => ({
+  createResource: vi.fn().mockResolvedValue({}),
+  updateResource: vi.fn().mockResolvedValue({}),
+  deleteResource: vi.fn().mockResolvedValue({}),
+}));
 
 const RESOURCE = {
   id: "res-1",
@@ -43,8 +48,8 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@multica/core/projects", () => ({
   projectResourcesOptions: () => ({ queryKey: ["project-resources"], queryFn: vi.fn() }),
   useCreateProjectResource: () => ({ mutateAsync: createResource }),
-  useUpdateProjectResource: () => ({ mutateAsync: vi.fn() }),
-  useDeleteProjectResource: () => ({ mutateAsync: vi.fn() }),
+  useUpdateProjectResource: () => ({ mutateAsync: updateResource }),
+  useDeleteProjectResource: () => ({ mutateAsync: deleteResource }),
 }));
 
 vi.mock("@multica/core/config", () => ({
@@ -95,6 +100,9 @@ describe("ProjectResourcesSection — local directory row", () => {
     resources = [{ ...RESOURCE, label: null, resource_ref: { local_path: "/work/中文 client/", daemon_id: "daemon-1" } } as ProjectResource];
     renderWithI18n(<ProjectResourcesSection projectId="p1" />);
     expect(screen.getByText("中文 client")).toBeInTheDocument();
+    await userEvent.hover(screen.getByText("中文 client"));
+    expect(await screen.findByText("/work/中文 client/")).toBeVisible();
+    await userEvent.unhover(screen.getByText("中文 client"));
     fireEvent.click(await openMenu("中文 client"));
     await waitFor(() => expect(openLocalDirectory).toHaveBeenCalledWith("/work/中文 client/", "daemon-1"));
   });
@@ -105,6 +113,42 @@ describe("ProjectResourcesSection — local directory row", () => {
     await waitFor(() => expect(openLocalDirectory).toHaveBeenCalledWith(RESOURCE.resource_ref.local_path, "daemon-1"));
     await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
     expect(createResource).not.toHaveBeenCalled();
+  });
+
+  it("keeps same-named directories bound to their own full paths", async () => {
+    resources = ["/frontend/client/", "/backend/client/"].map((local_path, index) => ({
+      ...RESOURCE, id: `res-${index}`, label: null,
+      resource_ref: { local_path, daemon_id: "daemon-1" },
+    } as ProjectResource));
+    renderWithI18n(<ProjectResourcesSection projectId="p1" />);
+    const rows = screen.getAllByLabelText("client");
+    expect(rows).toHaveLength(2);
+    for (const [index, row] of rows.entries()) {
+      fireEvent.contextMenu(row);
+      fireEvent.click(await screen.findByRole("menuitem", { name: strings.local_open_directory }));
+      await waitFor(() => expect(openLocalDirectory).toHaveBeenNthCalledWith(index + 1, index ? "/backend/client/" : "/frontend/client/", "daemon-1"));
+      await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    }
+  });
+
+  it("still edits execution mode without changing the original resource binding", async () => {
+    renderWithI18n(<ProjectResourcesSection projectId="p1" />);
+    fireEvent.click(screen.getByRole("button", { name: strings.mode_edit_tooltip }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: new RegExp(strings.mode_in_place_title) }));
+    fireEvent.click(screen.getByRole("button", { name: strings.mode_save }));
+    await waitFor(() => expect(updateResource).toHaveBeenCalledWith({
+      resourceId: RESOURCE.id,
+      data: { resource_ref: { ...RESOURCE.resource_ref, execution_mode: "in_place" } },
+    }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("still removes the resource using its ID", async () => {
+    renderWithI18n(<ProjectResourcesSection projectId="p1" />);
+    fireEvent.click(screen.getByRole("button", { name: strings.remove_tooltip }));
+    await waitFor(() => expect(deleteResource).toHaveBeenCalledWith(RESOURCE.id));
+    expect(openLocalDirectory).not.toHaveBeenCalled();
   });
 
   it.each([

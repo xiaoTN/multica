@@ -19,7 +19,7 @@ import { renderWithI18n } from "../../test/i18n";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 import { KeptRowsRelease, WorkPanel } from "./work-panel";
 
-const apiMock = vi.hoisted(() => ({ listIssueTableRows: vi.fn(), getIssue: vi.fn() }));
+const apiMock = vi.hoisted(() => ({ listIssueTableRows: vi.fn(), getIssue: vi.fn(), getAgentTaskSnapshot: vi.fn() }));
 const actions = vi.hoisted(() => ({
   sidebar: {
     items: [
@@ -131,13 +131,13 @@ const PROJECT = {
   updated_at: "",
 } as unknown as Project;
 
-function renderPanel(initialPath: string, pins: PinnedItem[] = [], projects: Project[] = []) {
+function renderPanel(initialPath: string, pins: PinnedItem[] = [], projects: Project[] = [], cacheTaskSnapshot = true) {
   const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
   qc.setQueryData(projectListOptions("ws-1").queryKey, { projects, total: projects.length });
   qc.setQueryData(pinListOptions("ws-1", "u1").queryKey, pins);
   qc.setQueryData(issueViewEverywhereOptions("ws-1").queryKey, []);
   qc.setQueryData(issueViewPreferenceOptions("ws-1", SIDEBAR_PROJECTS_SCOPE).queryKey, EMPTY_ISSUE_VIEW_PREFERENCE);
-  qc.setQueryData(agentTaskSnapshotOptions("ws-1").queryKey, []);
+  if (cacheTaskSnapshot) qc.setQueryData(agentTaskSnapshotOptions("ws-1").queryKey, []);
 
   function Harness() {
     const [pathname, setPathname] = useState(initialPath);
@@ -204,11 +204,25 @@ beforeEach(() => {
     total: 2,
     next_cursor: null,
   } as unknown as IssueTableRowsResponse);
-  // The issue page never finishes loading, so the panel cannot lean on it.
+  // 让详情请求保持等待，确保侧栏不能依赖详情页完成加载。
   apiMock.getIssue.mockReturnValue(new Promise<Issue>(() => {}));
+  apiMock.getAgentTaskSnapshot.mockResolvedValue([]);
 });
 
 describe("WorkPanel issue highlight", () => {
+  it("首次显示任务行时，不会在渲染过程中触发父面板更新", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      // 不预热任务快照，复现浏览器首次打开侧栏时创建查询的顺序。
+      renderPanel("/acme/issues/MUL-1", [], [], false);
+      expect(await screen.findByRole("link", { name: ISSUE.title })).toHaveAttribute("aria-current", "page");
+      expect(allIssues()).not.toHaveAttribute("aria-current");
+      expect(errors.mock.calls.filter((args) => String(args[0]).includes("Cannot update a component"))).toEqual([]);
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
   it("lights a clicked tree issue at once, never All issues first", async () => {
     renderPanel("/acme/my-issues");
     fireEvent.click(await screen.findByRole("link", { name: ISSUE.title }));

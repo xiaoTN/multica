@@ -8,9 +8,11 @@ export interface LocalDaemonStatus {
   daemonId: string | null;
   deviceName: string | null;
   running: boolean;
+  externallyManaged?: boolean;
 }
 
 interface DaemonStatusLike {
+  externallyManaged?: boolean;
   state:
     | "running"
     | "stopped"
@@ -39,6 +41,7 @@ function toStatus(s: DaemonStatusLike | undefined): LocalDaemonStatus {
     daemonId: s.daemonId ?? null,
     deviceName: s.deviceName ?? null,
     running: s.state === "running",
+    externallyManaged: s.externallyManaged === true,
   };
 }
 

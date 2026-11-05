@@ -12,6 +12,12 @@ export type PickDirectoryResult = {
   error?: string;
 };
 
+export type OpenLocalDirectoryResult = {
+  ok: boolean;
+  reason?: "unavailable" | "not_absolute" | "not_found" | "not_a_directory" | "not_readable" | "error" | "unsupported";
+  error?: string;
+};
+
 export type ValidateLocalDirectoryResult = {
   ok: boolean;
   reason?:
@@ -32,10 +38,21 @@ export type ValidateLocalDirectoryResult = {
 };
 
 interface DesktopLocalDirectoryAPI {
+  openLocalDirectory?: (path: string, daemonId: string) => Promise<OpenLocalDirectoryResult>;
   pickDirectory?: (defaultPath?: string) => Promise<PickDirectoryResult>;
   validateLocalDirectory?: (
     path: string,
   ) => Promise<ValidateLocalDirectoryResult>;
+}
+
+export function canOpenLocalDirectory(): boolean {
+  return typeof readDesktopAPI()?.openLocalDirectory === "function";
+}
+
+export async function openLocalDirectory(path: string, daemonId: string): Promise<OpenLocalDirectoryResult> {
+  const api = readDesktopAPI();
+  if (!api?.openLocalDirectory) return { ok: false, reason: "unsupported" };
+  return api.openLocalDirectory(path, daemonId);
 }
 
 function readDesktopAPI(): DesktopLocalDirectoryAPI | undefined {

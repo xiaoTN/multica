@@ -344,7 +344,7 @@ function observeDaemonBoundary(status: DaemonStatus): void {
   }
 }
 
-async function fetchHealth(): Promise<DaemonStatus> {
+export async function fetchHealth(): Promise<DaemonStatus> {
   // While the CLI is being downloaded or has permanently failed, short-circuit
   // polling — there's nothing to probe yet and /health calls would just return
   // "stopped", which would overwrite the correct setup state in the UI.

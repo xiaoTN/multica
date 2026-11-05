@@ -36,6 +36,12 @@ import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Spinner } from "@multica/ui/components/ui/spinner";
 import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "@multica/ui/components/ui/context-menu";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -48,10 +54,13 @@ import {
 import { TooltipHint } from "@multica/ui/components/common/tooltip-hint";
 import {
   isDesktopShell,
+  canOpenLocalDirectory,
+  openLocalDirectory,
   pickDirectory,
   useLocalDaemonStatus,
   validateLocalDirectory,
   type ValidateLocalDirectoryResult,
+  type LocalDaemonStatus,
 } from "../../platform";
 import {
   LocalDirectoryModeDialog,
@@ -134,7 +143,7 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
   const createResource = useCreateProjectResource(wsId, projectId);
   const updateResource = useUpdateProjectResource(wsId, projectId);
 
-  // 桌面端用文件选择器，网页端手动填写运行机器上的目录。
+  // Desktop uses a picker; web accepts a path on the selected machine.
   const desktopMode = isDesktopShell();
   const localDaemonId = daemonStatus.daemonId;
 
@@ -375,7 +384,7 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
                           ?.description
                       : undefined
                   }
-                  localDaemonId={localDaemonId}
+                  localDaemon={daemonStatus}
                   onEditGithubRef={(target) => {
                     setRefError(null);
                     setRefDialog({ resource: target });
@@ -604,7 +613,7 @@ function worktreeUnavailableReason(
 interface ResourceRowProps {
   resource: ProjectResource;
   githubRepoDescription?: string;
-  localDaemonId: string | null;
+  localDaemon: LocalDaemonStatus;
   onEditGithubRef: (
     resource: ProjectResource & { resource_ref: GithubRepoResourceRef },
   ) => void;
@@ -616,7 +625,7 @@ interface ResourceRowProps {
 function ResourceRow({
   resource,
   githubRepoDescription,
-  localDaemonId,
+  localDaemon,
   onEditGithubRef,
   onEditLocalDirectoryMode,
 }: ResourceRowProps) {
@@ -735,7 +744,7 @@ function ResourceRow({
     return (
       <LocalDirectoryRow
         resource={resource}
-        localDaemonId={localDaemonId}
+        localDaemon={localDaemon}
         onRemove={onRemove}
         removing={deleteResource.isPending}
         onEditMode={onEditLocalDirectoryMode}
@@ -770,7 +779,7 @@ function ResourceRow({
 
 interface LocalDirectoryRowProps {
   resource: ProjectResource & { resource_ref: LocalDirectoryResourceRef };
-  localDaemonId: string | null;
+  localDaemon: LocalDaemonStatus;
   onRemove: () => void;
   removing: boolean;
   onEditMode: (
@@ -780,7 +789,7 @@ interface LocalDirectoryRowProps {
 
 function LocalDirectoryRow({
   resource,
-  localDaemonId,
+  localDaemon,
   onRemove,
   removing,
   onEditMode,
@@ -789,6 +798,7 @@ function LocalDirectoryRow({
   const ref = resource.resource_ref;
   const mode = executionModeOf(ref);
   const display = localDirectoryLabel(resource);
+  const localDaemonId = localDaemon.daemonId;
   const isForeignDaemon =
     localDaemonId !== null && ref.daemon_id !== localDaemonId;
   const isLocalUnknown = localDaemonId === null;
@@ -796,84 +806,126 @@ function LocalDirectoryRow({
   // actions stay available so the user can drop or reconfigure a stale
   // registration from any device.
   const mismatch = isForeignDaemon || isLocalUnknown;
+  const unavailableReason = !canOpenLocalDirectory()
+    ? t(($) => $.resources.local_open_unsupported)
+    : isForeignDaemon || localDaemon.externallyManaged
+      ? t(($) => $.resources.local_other_machine_tooltip)
+      : !localDaemon.running || isLocalUnknown
+        ? t(($) => $.resources.toast_local_daemon_not_running)
+        : null;
+  const onOpen = async () => {
+    if (unavailableReason) return;
+    try {
+      const result = await openLocalDirectory(ref.local_path, ref.daemon_id);
+      if (result.ok) return;
+      const reasons = {
+        unavailable: t(($) => $.resources.local_open_unavailable),
+        unsupported: t(($) => $.resources.local_open_unsupported),
+        not_absolute: t(($) => $.resources.local_validate_not_absolute),
+        not_found: t(($) => $.resources.local_validate_not_found),
+        not_a_directory: t(($) => $.resources.local_validate_not_a_directory),
+        not_readable: t(($) => $.resources.local_validate_not_readable),
+        error: result.error,
+      };
+      toast.error(t(($) => $.resources.toast_local_open_failed), {
+        description: result.reason ? reasons[result.reason] : result.error,
+      });
+    } catch (error) {
+      toast.error(t(($) => $.resources.toast_local_open_failed), {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+  };
 
   return (
-    <div
-      className={`flex items-center gap-2 text-caption group ${
-        mismatch ? "opacity-60" : ""
-      }`}
-    >
-      <FolderOpen className="size-3.5 text-muted-foreground shrink-0" />
-      {/* The name is the folder's own (or whatever a label update stored);
-          there is deliberately no rename here. A folder is identified by its
-          path, and a pencil that only retitled the row read as a broken edit
-          action beside the branch and remove controls (MUL-7525). */}
-      <Tooltip>
-        <TooltipTrigger
-          render={<span className="truncate flex-1">{display}</span>}
-        />
-        <TooltipContent side="top">
-          <div className="space-y-0.5 text-micro">
-            <div className="font-mono">{ref.local_path}</div>
-            {mismatch && (
-              <div className="text-muted-foreground">
-                {isLocalUnknown
-                  ? t(($) => $.resources.local_no_daemon_tooltip)
-                  : t(($) => $.resources.local_other_machine_tooltip)}
-              </div>
-            )}
-          </div>
-        </TooltipContent>
-      </Tooltip>
-      {/* Always visible, unlike the hover-only actions: without it there is no
-          way to tell whether tasks on this folder edit it directly or hand back
-          a branch, which is the first thing someone asks when a task queues (or
-          does not). */}
-      {mode === "worktree" && (
+    <ContextMenu>
+      <ContextMenuTrigger
+        render={<div tabIndex={0} aria-label={display} />}
+        className={`flex items-center gap-2 text-caption group ${
+          mismatch ? "opacity-60" : ""
+        } rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+      >
+        <FolderOpen className="size-3.5 text-muted-foreground shrink-0" />
+        {/* The name is the folder's own (or whatever a label update stored);
+            there is deliberately no rename here. A folder is identified by its
+            path, and a pencil that only retitled the row read as a broken edit
+            action beside the branch and remove controls (MUL-7525). */}
         <Tooltip>
           <TooltipTrigger
-            render={
-              <Badge variant="secondary" className="shrink-0 gap-1 font-normal">
-                <GitBranch className="size-3" />
-                {t(($) => $.resources.mode_badge_worktree)}
-              </Badge>
-            }
+            render={<span className="truncate flex-1">{display}</span>}
           />
           <TooltipContent side="top">
-            {t(($) => $.resources.mode_badge_worktree_tooltip)}
+            <div className="space-y-0.5 text-micro">
+              <div className="font-mono">{ref.local_path}</div>
+              {mismatch && (
+                <div className="text-muted-foreground">
+                  {isLocalUnknown
+                    ? t(($) => $.resources.local_no_daemon_tooltip)
+                    : t(($) => $.resources.local_other_machine_tooltip)}
+                </div>
+              )}
+            </div>
           </TooltipContent>
         </Tooltip>
-      )}
-      {/* Not gated on `mismatch`: switching the mode only rewrites a field, so
-          it works from the web app or another device, unlike the folder
-          picker. */}
-      <TooltipHint label={t(($) => $.resources.mode_edit_tooltip)}>
-        <button
-          type="button"
-          onClick={() => onEditMode(resource)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity rounded-sm p-0.5 hover:bg-accent"
-          aria-label={t(($) => $.resources.mode_edit_tooltip)}
-        >
-          <GitBranch className="size-3 text-muted-foreground" />
-        </button>
-      </TooltipHint>
-      <TooltipHint label={t(($) => $.resources.remove_tooltip)}>
-        <button
-          type="button"
-          onClick={onRemove}
-          disabled={removing}
-          aria-busy={removing}
-          className="opacity-0 group-hover:opacity-100 disabled:opacity-100 transition-opacity rounded-sm p-0.5 hover:bg-accent"
-          aria-label={t(($) => $.resources.remove_tooltip)}
-        >
-          {removing ? (
-            <Spinner className="size-3" aria-hidden="true" />
-          ) : (
-            <Trash2 className="size-3 text-muted-foreground" />
-          )}
-        </button>
-      </TooltipHint>
-    </div>
+        {/* Always visible, unlike the hover-only actions: without it there is no
+            way to tell whether tasks on this folder edit it directly or hand back
+            a branch, which is the first thing someone asks when a task queues (or
+            does not). */}
+        {mode === "worktree" && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Badge variant="secondary" className="shrink-0 gap-1 font-normal">
+                  <GitBranch className="size-3" />
+                  {t(($) => $.resources.mode_badge_worktree)}
+                </Badge>
+              }
+            />
+            <TooltipContent side="top">
+              {t(($) => $.resources.mode_badge_worktree_tooltip)}
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {/* Not gated on `mismatch`: switching the mode only rewrites a field, so
+            it works from the web app or another device, unlike the folder
+            picker. */}
+        <TooltipHint label={t(($) => $.resources.mode_edit_tooltip)}>
+          <button
+            type="button"
+            onClick={() => onEditMode(resource)}
+            className="opacity-0 group-hover:opacity-100 transition-opacity rounded-sm p-0.5 hover:bg-accent"
+            aria-label={t(($) => $.resources.mode_edit_tooltip)}
+          >
+            <GitBranch className="size-3 text-muted-foreground" />
+          </button>
+        </TooltipHint>
+        <TooltipHint label={t(($) => $.resources.remove_tooltip)}>
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={removing}
+            aria-busy={removing}
+            className="opacity-0 group-hover:opacity-100 disabled:opacity-100 transition-opacity rounded-sm p-0.5 hover:bg-accent"
+            aria-label={t(($) => $.resources.remove_tooltip)}
+          >
+            {removing ? (
+              <Spinner className="size-3" aria-hidden="true" />
+            ) : (
+              <Trash2 className="size-3 text-muted-foreground" />
+            )}
+          </button>
+        </TooltipHint>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem disabled={unavailableReason !== null} onClick={() => void onOpen()}>
+          <FolderOpen />
+          {t(($) => $.resources.local_open_directory)}
+        </ContextMenuItem>
+        {unavailableReason && (
+          <p className="max-w-64 px-2 py-1 text-caption text-muted-foreground">{unavailableReason}</p>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 

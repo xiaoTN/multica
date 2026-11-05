@@ -19,6 +19,7 @@ import { setupLocalUpdater } from "./local-updater";
 import { installLocalNetworkPolicy } from "./local-network-policy";
 import {
   setupDaemonManager,
+  fetchHealth as getLocalDaemonStatus,
 } from "./daemon-manager";
 import { setupLocalDirectory } from "./local-directory";
 import { configureLinuxFileDialogs } from "./linux-file-dialog";
@@ -1027,7 +1028,14 @@ if (!gotTheLock) {
       () => mainWindows.mostRecent(),
       () => mainWindows.all(),
     );
-    setupLocalDirectory(() => mainWindows.mostRecent());
+    setupLocalDirectory(() => mainWindows.mostRecent(), {
+      isAuthorizedSender: (event) => {
+        const window = BrowserWindow.fromWebContents(event.sender);
+        return Boolean(window && mainWindows.has(window)
+          && authSessionCoordinator.hasActiveMainSession(window));
+      },
+      getDaemonStatus: getLocalDaemonStatus,
+    });
 
     // 默认安装自行准备后台；显式填写的连接配置仍由用户管理，避免切换已有数据。
     if (!is.dev && runtimeConfigResult.ok && !existsSync(desktopConfigPath())) {

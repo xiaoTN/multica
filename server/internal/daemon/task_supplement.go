@@ -121,6 +121,18 @@ Human message:
 %s`, strconv.Quote(authorName), commentID, content)
 }
 
+func formatChatSupplementInstruction(messageID, authorName, content string) string {
+	authorName = strings.Join(strings.Fields(authorName), " ")
+	return fmt.Sprintf(`[ADDITIONAL GUIDANCE] Human %s added a chat message while you were working.
+
+Chat message ID: %s
+Preserve and complete the original objective. Incorporate this guidance into the same active run, and follow this chat's reply instructions.
+Replace or cancel the original objective only if the human explicitly requests it.
+
+Human message:
+%s`, strconv.Quote(authorName), messageID, content)
+}
+
 func taskSupplementEndpointUnsupported(err error) bool {
 	var reqErr *requestError
 	return errors.As(err, &reqErr) && (reqErr.StatusCode == http.StatusNotFound || reqErr.StatusCode == http.StatusPreconditionFailed)
@@ -180,7 +192,11 @@ func (d *Daemon) runTaskSupplementLoop(ctx context.Context, session *agent.Sessi
 		// The adapter owns transport deadlines. Hook-based providers wait for a
 		// safe boundary, which can follow a long-running tool; run cancellation
 		// still aborts that wait and prevents late delivery.
-		injectErr := session.Supplement(ctx, formatTaskSupplementInstruction(supplement.CommentID, supplement.AuthorType, supplement.AuthorName, supplement.Content))
+		instruction := formatTaskSupplementInstruction(supplement.CommentID, supplement.AuthorType, supplement.AuthorName, supplement.Content)
+		if supplement.MessageID != "" {
+			instruction = formatChatSupplementInstruction(supplement.MessageID, supplement.AuthorName, supplement.Content)
+		}
+		injectErr := session.Supplement(ctx, instruction)
 		reason := taskSupplementFailureReason(ctx, injectErr)
 		if injectErr != nil {
 			// Raw provider/Go diagnostics remain local. Workspace-visible state is

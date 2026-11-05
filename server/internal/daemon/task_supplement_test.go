@@ -222,3 +222,17 @@ func TestClaimTaskSupplementAdvertisesAuthorRendering(t *testing.T) {
 		t.Fatalf("claim = %+v", supplement)
 	}
 }
+
+func TestChatSupplementDoesNotInheritIssueCommentReplyRouting(t *testing.T) {
+	instruction := formatChatSupplementInstruction("chat-message-1", "Taylor", "Keep the original goal")
+	for _, want := range []string{"Chat message ID: chat-message-1", "same active run", "Keep the original goal"} {
+		if !strings.Contains(instruction, want) {
+			t.Fatalf("missing %q: %s", want, instruction)
+		}
+	}
+	for _, forbidden := range []string{"Comment ID:", "--parent", "emoji reaction"} {
+		if strings.Contains(instruction, forbidden) {
+			t.Fatalf("chat input inherited comment routing %q", forbidden)
+		}
+	}
+}

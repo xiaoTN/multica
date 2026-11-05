@@ -56,6 +56,7 @@ func perTurnContextBlocks(task Task, opts promptOpts) string {
 	b.WriteString(buildSharedLocalDirectoryBlock(opts.sharedLocalDirectory))
 	b.WriteString(buildWorktreeReplayConflictBlock(opts.worktreeReplayConflicts))
 	b.WriteString(buildWorktreeBranchBlock(opts.worktreeBranch, opts.worktreeBase))
+	b.WriteString(buildWorktreeDataBlock(opts.worktreeDataDirs))
 	if task.PriorSessionResumeUnavailable {
 		b.WriteString(sessionContinuityNoticeFor(task))
 	}
@@ -141,6 +142,25 @@ type promptOpts struct {
 	worktreeReplayConflicts []string
 	worktreeBranch          string
 	worktreeBase            string
+	worktreeDataDirs        []string
+}
+
+// WithWorktreeDataDirs 提供全部本地仓库的长期数据入口，供本轮和后续任务交接。
+func WithWorktreeDataDirs(dirs []string) PromptOption {
+	return func(o *promptOpts) { o.worktreeDataDirs = dirs }
+}
+
+func buildWorktreeDataBlock(dirs []string) string {
+	if len(dirs) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("## 长期私有数据\n\n工作树是临时目录，任务收尾后会删除。后续仍要使用的账本、图片、标注、调用回执和实验状态应直接存入以下固定目录，并在交接中记录绝对路径：\n\n")
+	for _, dir := range dirs {
+		fmt.Fprintf(&b, "- `%s`\n", dir)
+	}
+	b.WriteString("\n这些目录不进 Git，也不随任务自动清理；同一任务会话的不同智能体共用入口。临时工作树内被 Git 忽略的文件会在收尾前移入对应目录的 archives/<运行标识>/files/，manifest.json 记录原目录和相对路径。接续任务先检查这里已有的账本和回执，再决定恢复步骤；交接给其他任务时提供此固定位置，保留累计用量和原始证据。\n\n")
+	return b.String()
 }
 
 // PromptOption tunes per-turn prompt copy with run-scoped context.

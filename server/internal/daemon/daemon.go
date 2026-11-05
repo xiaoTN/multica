@@ -8727,6 +8727,14 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	if env.LocalWorktree != nil {
 		promptOptions = append(promptOptions, WithWorktreeBranch(env.LocalWorktree.Branch, env.LocalWorktree.BaseCommit))
 	}
+	var worktreeDataDirs []string
+	if env.LocalWorktree != nil {
+		worktreeDataDirs = append(worktreeDataDirs, env.LocalWorktree.DataDir)
+	}
+	for _, worktree := range env.AdditionalLocalWorktrees {
+		worktreeDataDirs = append(worktreeDataDirs, worktree.DataDir)
+	}
+	promptOptions = append(promptOptions, WithWorktreeDataDirs(worktreeDataDirs))
 	prompt := BuildPrompt(task, provider, promptOptions...)
 
 	// Pass task-scoped auth credentials and context so the spawned agent CLI

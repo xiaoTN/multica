@@ -150,6 +150,8 @@ type LocalWorktree struct {
 	// WorkDir is the agent's cwd: Path, plus the offset of LocalPath inside
 	// the repo when the user pointed the resource at a subdirectory.
 	WorkDir string
+	// DataDir 是同一会话跨轮保留的私有目录，不参与任务目录自动清理。
+	DataDir string
 	// Branch is the branch created for this task, in the user's repo.
 	Branch string
 	// BaseCommit is the commit the worktree started from — this turn's baseline
@@ -382,6 +384,10 @@ func PrepareLocalWorktree(params LocalWorktreeParams, logger *slog.Logger) (*Loc
 	}
 
 	plan := resolveTaskBranch(gitRoot, params, headSHA, logger)
+	dataDir, err := localWorktreeDataDir(gitRoot, params)
+	if err != nil {
+		return nil, err
+	}
 	actualBranch, createdBranch, err := addLocalWorktree(gitRoot, worktreePath, plan, params.TaskID)
 	if err != nil {
 		return nil, err
@@ -391,6 +397,7 @@ func PrepareLocalWorktree(params LocalWorktreeParams, logger *slog.Logger) (*Loc
 		GitRoot:       gitRoot,
 		Path:          worktreePath,
 		WorkDir:       filepath.Join(worktreePath, rel),
+		DataDir:       dataDir,
 		Branch:        actualBranch,
 		BaseCommit:    plan.base,
 		Continued:     plan.continues,
@@ -683,6 +690,14 @@ func (w *LocalWorktree) Finalize(logger *slog.Logger) (LocalWorktreeOutcome, err
 		}
 	}
 
+	archiveDir, archiveErr := w.preserveIgnoredData()
+	if archiveErr != nil {
+		outcome.PreservedPath = w.Path
+		return outcome, fmt.Errorf("私有数据未能完整保留，工作目录仍在 %s，已保存部分位于 %s：%w", w.Path, archiveDir, archiveErr)
+	}
+	if archiveDir != "" && logger != nil {
+		logger.Info("任务私有文件已保留，后续运行可继续读取", "data_dir", w.DataDir, "archive", archiveDir)
+	}
 	if removeErr := removeLocalWorktreeDir(w.GitRoot, w.Path, logger); removeErr != nil {
 		outcome.PreservedPath = w.Path
 		return outcome, fmt.Errorf(

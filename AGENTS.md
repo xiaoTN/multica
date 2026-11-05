@@ -33,6 +33,7 @@ Use `Makefile`, workspace `package.json` files, and `pnpm-workspace.yaml` for cu
 - Use the checkout's managed environment: `make up`, `make status`, `make down`. `make down` preserves data; `make destroy` removes the environment and its data.
 - 网页需要复用桌面配置时，按 [CONTRIBUTING.md](CONTRIBUTING.md) 的桌面后台模式启动；验收时核对网页与桌面的后台地址、工作区 ID 一致。
 - Worktrees share PostgreSQL but have isolated databases/ports. Use the environment scripts and `.env.worktree`; do not copy the main checkout's `.env` or manually create a database through an assumed PostgreSQL instance.
+- 工作树任务的账本、图片、标注和回执等长期私有数据，存入本轮提示提供的固定数据目录，交接时给出绝对路径；恢复和归档位置见 [CONTRIBUTING.md](CONTRIBUTING.md#persistent-private-task-data)。
 - Regenerate sqlc with `make sqlc` after SQL changes.
 - Run the narrowest useful checks while iterating, then broaden when risk warrants it. Report what actually ran and any skipped checks.
 

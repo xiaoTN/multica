@@ -117,6 +117,13 @@ multica issue comment update <comment-id> --expected-revision 2 --content "请�
 multica issue runs MUL-123
 ```
 
+添加和移除均为幂等操作，重复 `add` 会保留同一表情。智能体运行中的身份由本轮任务令牌确定。
+
+```bash
+multica issue comment reaction add <comment-id> --emoji "👌"
+multica issue comment reaction remove <comment-id> --emoji "👌"
+```
+
 长描述或评论从 stdin 读取，避免处理换行和引号：
 
 ```bash

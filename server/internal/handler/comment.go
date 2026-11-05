@@ -1636,10 +1636,8 @@ func (h *Handler) PreviewCommentTriggers(w http.ResponseWriter, r *http.Request)
 // thread it covered inside that thread, so its replies legitimately target
 // those threads' comments — not just the trigger (MUL-4348 per-thread fan-out).
 //
-// Every other parent on the task's own issue is still rejected: this is the
-// defense against resumed-session --parent drift and cross-thread misplacement.
-// The allow-list is exactly the set the run was given to answer, so it cannot
-// reach arbitrary comments.
+// This covers the original input only. CreateComment also checks additions
+// claimed by this exact run; arbitrary comments remain outside the allow-list.
 func taskCoversReplyParent(task db.AgentTaskQueue, parentID pgtype.UUID) bool {
 	if !parentID.Valid {
 		return false
@@ -1778,8 +1776,8 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 		if task, ok := h.taskFromRequestHeader(r); ok {
 			// Defense against resumed-session drift: when an agent posts from
 			// inside a comment-triggered task AND the comment is being posted on
-			// that same issue, the parent_id must exactly match the task's
-			// trigger comment. Resumed Claude sessions otherwise carry forward a
+			// that same issue, the parent_id must match an original input or a
+			// claimed addition. Resumed Claude sessions otherwise carry forward a
 			// previous turn's --parent UUID and silently misplace the reply.
 			//
 			// The task.IssueID scope is important: the CLI stamps X-Task-ID on
@@ -1789,7 +1787,21 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 			// unaffected.
 			if task.IssueID.Valid && uuidToString(task.IssueID) == uuidToString(issue.ID) {
 				if task.TriggerCommentID.Valid {
-					if !taskCoversReplyParent(task, parentID) {
+					covered := taskCoversReplyParent(task, parentID)
+					if !covered && parentID.Valid {
+						supplement, err := h.Queries.GetTaskSupplementForRun(r.Context(), db.GetTaskSupplementForRunParams{
+							CommentID: parentID, TaskID: task.ID, WorkspaceID: issue.WorkspaceID,
+						})
+						if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+							writeError(w, http.StatusInternalServerError, "failed to check additional message")
+							return
+						}
+						// Injection precedes its delivery acknowledgement, so the agent
+						// may reply while that exact input is still marked delivering.
+						covered = err == nil && supplement.IssueID == issue.ID &&
+							(supplement.Status == "delivering" || supplement.Status == "delivered")
+					}
+					if !covered {
 						// Keep this error actionable for agents (MUL-4417 / GH #5266).
 						// The two rejections need different copy. A resumed
 						// session carrying a previous turn's --parent forward
@@ -1797,7 +1809,7 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 						// telling it that it did sends it looking for a
 						// new-thread opt-in instead of simply correcting the
 						// parent it already passed.
-						fix := "set parent_id (--parent) to " + uuidToString(task.TriggerCommentID) + " or a coalesced comment id"
+						fix := "set parent_id (--parent) to " + uuidToString(task.TriggerCommentID) + " or a coalesced comment id or an additional comment claimed by this run"
 						msg := "comment-triggered tasks cannot create top-level comments; " + fix
 						if parentID.Valid {
 							msg = "parent_id " + uuidToString(parentID) + " is not a comment this task may reply under; " + fix

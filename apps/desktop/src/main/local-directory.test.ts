@@ -19,7 +19,7 @@ vi.mock("electron", () => ({
 vi.mock("fs/promises", () => ({ stat: mocks.stat, access: mocks.access }));
 
 const event = { sender: {} } as IpcMainInvokeEvent;
-function invoke(channel: string, path?: string) {
+function invoke(channel: string, path?: string | boolean) {
   const handler = mocks.handle.mock.calls.find(([name]) => name === channel)?.[1];
   if (!handler) throw new Error(`Missing handler: ${channel}`);
   return handler(event, path);
@@ -29,6 +29,24 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.fromWebContents.mockReturnValue({});
   setupLocalDirectory(() => null);
+});
+
+describe("local file path picker IPC", () => {
+  it("returns selected paths without reading or uploading their contents", async () => {
+    const paths = ["/data/photo.png", "/data/photos"];
+    mocks.showOpenDialog.mockResolvedValue({ canceled: false, filePaths: paths });
+    await expect(invoke("local-files:pick", true)).resolves.toEqual(paths);
+    expect(mocks.showOpenDialog).toHaveBeenCalledWith({}, {
+      properties: ["openFile", ...(process.platform === "darwin" ? ["openDirectory"] : []), "multiSelections"],
+    });
+    expect(mocks.stat).not.toHaveBeenCalled();
+    expect(mocks.access).not.toHaveBeenCalled();
+  });
+
+  it("returns no paths when cancelled", async () => {
+    mocks.showOpenDialog.mockResolvedValue({ canceled: true, filePaths: ["/data/photo.png"] });
+    await expect(invoke("local-files:pick")).resolves.toEqual([]);
+  });
 });
 
 describe("local directory picker IPC", () => {

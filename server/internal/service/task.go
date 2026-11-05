@@ -2345,8 +2345,11 @@ type DirectChatSendResult struct {
 	Message            db.ChatMessage
 	BoundAttachmentIDs []pgtype.UUID
 	Queued             bool
+	Steered            bool
 	InitialTitle       string
 }
+
+var ErrChatSteerUnavailable = errors.New("chat turn cannot accept additional messages")
 
 var ErrChatSessionAlreadyStarted = errors.New("chat session already has a user message")
 
@@ -2370,6 +2373,7 @@ func (s *TaskService) SendDirectChatMessage(
 	attachmentIDs []pgtype.UUID,
 	uploaderType string,
 	uploaderID pgtype.UUID,
+	steerTaskID pgtype.UUID,
 ) (*DirectChatSendResult, error) {
 	// Build the per-task Composio overlay before the transaction — it can do
 	// network I/O and must not run with a DB transaction open.
@@ -2416,6 +2420,35 @@ func (s *TaskService) SendDirectChatMessage(
 		}
 		if !carrier.RuntimeID.Valid {
 			return ErrChatTaskAgentNoRuntime
+		}
+
+		if steerTaskID.Valid {
+			if len(attachmentIDs) > 0 {
+				return ErrChatSteerUnavailable
+			}
+			target, err := qtx.LockChatSupplementTarget(ctx, db.LockChatSupplementTargetParams{
+				TaskID: steerTaskID, ChatSessionID: session.ID, AgentID: session.AgentID, WorkspaceID: session.WorkspaceID,
+			})
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrChatSteerUnavailable
+			}
+			if err != nil {
+				return err
+			}
+			msg, err := qtx.CreateChatMessage(ctx, db.CreateChatMessageParams{
+				ID: dbid.NewV7(), ChatSessionID: session.ID, Role: "user", Content: content,
+				TaskID: target.ID, MessageKind: pgtype.Text{String: protocol.ChatMessageKindMessage, Valid: true},
+			})
+			if err != nil {
+				return err
+			}
+			if err := qtx.CreateChatTaskSupplement(ctx, db.CreateChatTaskSupplementParams{
+				MessageID: msg.ID, TaskID: target.ID, ChatSessionID: session.ID, AuthorID: initiatorUserID,
+			}); err != nil {
+				return err
+			}
+			out.Task, out.Message, out.Steered = target, msg, true
+			return qtx.TouchChatSession(ctx, session.ID)
 		}
 
 		// The database status of every newly-created task is "queued" until a
@@ -2550,6 +2583,10 @@ func (s *TaskService) SendDirectChatMessage(
 			"agent_id", util.UUIDToString(session.AgentID),
 			"error", err)
 		return nil, err
+	}
+
+	if out.Steered {
+		return &out, nil
 	}
 
 	slog.Info("direct chat task enqueued",
@@ -6418,6 +6455,9 @@ func SettleTerminalTaskState(ctx context.Context, q *db.Queries, tasks ...db.Age
 	}
 	if _, err := q.SettleTerminalTaskSupplements(ctx, taskIDs); err != nil {
 		return fmt.Errorf("settle terminal task supplements: %w", err)
+	}
+	if err := q.SettleTerminalChatTaskSupplements(ctx, taskIDs); err != nil {
+		return fmt.Errorf("settle terminal chat supplements: %w", err)
 	}
 	return SettleDeliveredDelegatedFailureRecoveries(ctx, q, tasks...)
 }

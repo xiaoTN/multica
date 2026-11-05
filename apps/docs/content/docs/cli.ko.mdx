@@ -117,6 +117,13 @@ multica issue comment update <comment-id> --expected-revision 2 --content "회�
 multica issue runs MUL-123
 ```
 
+추가와 삭제는 멱등적입니다. `add`를 반복해도 같은 반응이 유지됩니다. 에이전트 실행에서는 해당 실행의 토큰으로 신원을 확인합니다.
+
+```bash
+multica issue comment reaction add <comment-id> --emoji "👌"
+multica issue comment reaction remove <comment-id> --emoji "👌"
+```
+
 긴 설명이나 댓글은 stdin에서 읽어 줄바꿈과 따옴표 처리를 피할 수 있습니다.
 
 ```bash

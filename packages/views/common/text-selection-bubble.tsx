@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { autoUpdate, computePosition, flip, hide, offset, shift } from "@floating-ui/dom";
 
 /** Match the description's EditorBubbleMenu geometry for readonly selections. */
-export function CommentSelectionBubble({ range, source, children, owner, markerRanges, onPositioned }: {
+export function TextSelectionBubble({ range, source, children, owner, markerRanges, onPositioned }: {
   range: Range;
   source: HTMLElement;
   children: ReactNode;

@@ -35,7 +35,9 @@
     "change_project_context": "Change project context",
     "remove_project_context": "Remove project context",
     "no_projects": "No projects yet",
-    "project_context_unsupported": "Project description won't apply — this agent's daemon needs an upgrade"
+    "project_context_unsupported": "Project description won't apply — this agent's daemon needs an upgrade",
+    "steer_unavailable": "This run cannot accept an addition, or files are attached. Your draft is kept; choose to send after this run.",
+    "steer_queued": "This server queued the message for a new run."
   },
   "queue": {
     "title_one": "{{count}} queued message",
@@ -255,5 +257,12 @@
     "archive": "Archive chat",
     "unarchive": "Unarchive chat",
     "delete": "Delete chat"
+  },
+  "delivery": {
+    "pending": "Waiting for delivery to this run",
+    "delivered": "Received by the current run",
+    "failed": "Not delivered to this run",
+    "turn_ended": "The run ended before delivery.",
+    "rejected": "The runtime rejected delivery."
   }
 }

@@ -34,7 +34,9 @@
     "change_project_context": "更改项目上下文",
     "remove_project_context": "移除项目上下文",
     "no_projects": "还没有项目",
-    "project_context_unsupported": "项目描述不会生效——该智能体的守护进程版本过旧，需要升级"
+    "project_context_unsupported": "项目描述不会生效——该智能体的守护进程版本过旧，需要升级",
+    "steer_unavailable": "当前运行无法接收插话，或消息含有附件。草稿已保留，可选择本轮结束后发送。",
+    "steer_queued": "当前服务器已将消息排队，将在新一轮运行中处理。"
   },
   "queue": {
     "title_other": "{{count}} 条排队消息",
@@ -251,5 +253,12 @@
     "delete": "删除会话",
     "archive": "归档会话",
     "unarchive": "取消归档"
+  },
+  "delivery": {
+    "pending": "等待投递到当前运行",
+    "delivered": "当前运行已接收",
+    "failed": "未投递到当前运行",
+    "turn_ended": "投递前运行已结束。",
+    "rejected": "运行时未能接收消息。"
   }
 }

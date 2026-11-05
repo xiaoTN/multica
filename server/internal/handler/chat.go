@@ -759,6 +759,10 @@ func (h *Handler) DeleteChatSession(w http.ResponseWriter, r *http.Request) {
 	// draft-restore protocol: FinalizeDeferredCancelledChat takes the same
 	// chat_session lock before inserting a restore, so it cannot slip one past
 	// this sweep (see LockChatSessionForTask in chat.sql).
+	if err := qtx.DeleteChatTaskSupplementsBySession(r.Context(), session.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete chat delivery receipts")
+		return
+	}
 	if err := qtx.DeleteChatDraftRestoresBySession(r.Context(), session.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete chat session draft restores")
 		return
@@ -812,15 +816,19 @@ func (h *Handler) DeleteChatSession(w http.ResponseWriter, r *http.Request) {
 // Chat Messages
 
 type SendChatMessageRequest struct {
-	Content       string   `json:"content"`
-	AttachmentIDs []string `json:"attachment_ids"`
+	Mode           string   `json:"mode"`
+	ExpectedTaskID string   `json:"expected_task_id"`
+	Content        string   `json:"content"`
+	AttachmentIDs  []string `json:"attachment_ids"`
 }
 
 type SendChatMessageResponse struct {
-	MessageID     string `json:"message_id"`
-	TaskID        string `json:"task_id"`
-	SupportsQueue bool   `json:"supports_queue"`
-	Queued        bool   `json:"queued"`
+	MessageCreatedAt string `json:"message_created_at"`
+	Steered          bool   `json:"steered"`
+	MessageID        string `json:"message_id"`
+	TaskID           string `json:"task_id"`
+	SupportsQueue    bool   `json:"supports_queue"`
+	Queued           bool   `json:"queued"`
 	// AttachmentIDs are the attachment rows actually bound to this message by
 	// the server. The client diffs these against the ids it requested so it
 	// can warn the user when an attachment silently failed to bind — no extra
@@ -855,6 +863,19 @@ func (h *Handler) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 	if req.Content == "" {
 		writeError(w, http.StatusBadRequest, "content is required")
 		return
+	}
+
+	var steerTarget pgtype.UUID
+	if req.Mode != "" && req.Mode != "queue" && req.Mode != "steer" {
+		writeError(w, http.StatusBadRequest, "invalid send mode")
+		return
+	}
+	if req.Mode == "steer" {
+		id, ok := parseUUIDOrBadRequest(w, req.ExpectedTaskID, "expected_task_id")
+		if !ok {
+			return
+		}
+		steerTarget = id
 	}
 
 	// Pre-validate attachment ids early so invalid input returns 400 before
@@ -952,9 +973,11 @@ func (h *Handler) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 	// creator-only), so they are the task initiator and the run's originator —
 	// surfaced to the agent under `## On Behalf Of`. actorType/actorID were
 	// resolved above for the invoke gate.
-	sent, err := h.TaskService.SendDirectChatMessage(r.Context(), session, agent, parseUUID(userID), req.Content, attachmentIDs, actorType, parseUUID(actorID))
+	sent, err := h.TaskService.SendDirectChatMessage(r.Context(), session, agent, parseUUID(userID), req.Content, attachmentIDs, actorType, parseUUID(actorID), steerTarget)
 	if err != nil {
 		switch {
+		case errors.Is(err, service.ErrChatSteerUnavailable):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "chat turn cannot accept additional messages", "code": "chat_steer_unavailable"})
 		case errors.Is(err, service.ErrChatSessionArchived):
 			writeError(w, http.StatusConflict, "chat session is archived")
 		case errors.Is(err, service.ErrChatTaskAgentArchived):
@@ -969,6 +992,9 @@ func (h *Handler) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	msg := sent.Message
 	task := sent.Task
+	if sent.Steered && h.DaemonTaskSupplement != nil {
+		h.DaemonTaskSupplement.NotifyTaskSupplementAvailable(uuidToString(task.RuntimeID), uuidToString(task.ID))
+	}
 	currentTitle := session.Title
 	if sent.InitialTitle != "" {
 		currentTitle = sent.InitialTitle
@@ -1021,12 +1047,14 @@ func (h *Handler) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, SendChatMessageResponse{
-		MessageID:     uuidToString(msg.ID),
-		TaskID:        uuidToString(task.ID),
-		SupportsQueue: true,
-		Queued:        sent.Queued,
-		CreatedAt:     timestampToString(task.CreatedAt),
-		AttachmentIDs: boundAttachmentIDs,
+		MessageID:        uuidToString(msg.ID),
+		TaskID:           uuidToString(task.ID),
+		SupportsQueue:    true,
+		Queued:           sent.Queued,
+		Steered:          sent.Steered,
+		MessageCreatedAt: timestampToString(msg.CreatedAt),
+		CreatedAt:        timestampToString(task.CreatedAt),
+		AttachmentIDs:    boundAttachmentIDs,
 	})
 }
 
@@ -1212,6 +1240,7 @@ func (h *Handler) ListChatMessages(w http.ResponseWriter, r *http.Request) {
 	for i, m := range messages {
 		resp[i] = chatMessageToResponse(m, groupedAtt[uuidToString(m.ID)])
 	}
+	h.applyChatDeliveryReceipts(r.Context(), session.ID, resp)
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -1277,6 +1306,7 @@ func (h *Handler) ListChatMessagesPage(w http.ResponseWriter, r *http.Request) {
 	for i, m := range messages {
 		resp[i] = chatMessageToResponse(m, groupedAtt[uuidToString(m.ID)])
 	}
+	h.applyChatDeliveryReceipts(r.Context(), session.ID, resp)
 	writeJSON(w, http.StatusOK, ChatMessagesPageResponse{
 		Messages:   resp,
 		Limit:      limit,
@@ -2002,12 +2032,15 @@ func buildChatLastMessage(at pgtype.Timestamptz, content, role string, failure p
 }
 
 type ChatMessageResponse struct {
-	ID            string  `json:"id"`
-	ChatSessionID string  `json:"chat_session_id"`
-	Role          string  `json:"role"`
-	Content       string  `json:"content"`
-	TaskID        *string `json:"task_id"`
-	CreatedAt     string  `json:"created_at"`
+	DeliveryStatus        string  `json:"delivery_status,omitempty"`
+	DeliveryFailureReason *string `json:"delivery_failure_reason,omitempty"`
+	DeliveredAt           *string `json:"delivered_at,omitempty"`
+	ID                    string  `json:"id"`
+	ChatSessionID         string  `json:"chat_session_id"`
+	Role                  string  `json:"role"`
+	Content               string  `json:"content"`
+	TaskID                *string `json:"task_id"`
+	CreatedAt             string  `json:"created_at"`
 	// FailureReason flags an assistant row synthesized by FailTask's chat
 	// fallback. Front-end uses it to switch to the destructive bubble.
 	FailureReason *string `json:"failure_reason"`

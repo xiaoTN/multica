@@ -11,7 +11,7 @@ export interface LazyEditorHandle {
   focus: () => void;
   focusAtCoords?: (coords: { x: number; y: number }) => void;
   focusAtAnchor?: (anchor: TextAnchor) => void;
-  uploadFile?: (file: File) => void;
+  uploadFile?: (file: File | string) => void;
 }
 
 /**
@@ -83,7 +83,7 @@ export function useLazyEditor({
   const [ready, setReady] = useState(false);
   const focusTargetRef = useRef<LazyFocusTarget | null>(null);
   const focusPendingRef = useRef(false);
-  const pendingFilesRef = useRef<File[]>([]);
+  const pendingFilesRef = useRef<(File | string)[]>([]);
 
   // Render-phase reset on subject change — see the `resetKey` option doc.
   const [prevResetKey, setPrevResetKey] = useState(resetKey);
@@ -144,7 +144,7 @@ export function useLazyEditor({
 
   /** Upload now when the editor is live; otherwise queue and summon it. */
   const uploadOrQueue = useCallback(
-    (files: File[]) => {
+    (files: (File | string)[]) => {
       if (ready) {
         for (const file of files) editorRef.current?.uploadFile?.(file);
         return;

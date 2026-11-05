@@ -467,7 +467,12 @@ type ackTaskSupplementRequest struct {
 
 func (h *Handler) ClaimTaskSupplement(w http.ResponseWriter, r *http.Request) {
 	taskID := chi.URLParam(r, "taskId")
-	if _, ok := h.requireDaemonTaskAccess(w, r, taskID); !ok {
+	task, ok := h.requireDaemonTaskAccess(w, r, taskID)
+	if !ok {
+		return
+	}
+	if task.ChatSessionID.Valid {
+		h.claimChatTaskSupplement(w, r, task)
 		return
 	}
 	var req struct {
@@ -497,7 +502,12 @@ func (h *Handler) ClaimTaskSupplement(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) AckTaskSupplement(w http.ResponseWriter, r *http.Request) {
 	taskID := chi.URLParam(r, "taskId")
-	if _, ok := h.requireDaemonTaskAccess(w, r, taskID); !ok {
+	task, ok := h.requireDaemonTaskAccess(w, r, taskID)
+	if !ok {
+		return
+	}
+	if task.ChatSessionID.Valid {
+		h.ackChatTaskSupplement(w, r, task)
 		return
 	}
 	commentID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "commentId"), "comment id")

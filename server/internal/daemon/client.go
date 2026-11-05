@@ -436,10 +436,18 @@ func (c *Client) ExtendTaskPrepareLease(ctx context.Context, runtimeID, taskID s
 }
 
 type TaskSupplement struct {
+	MessageID  string `json:"message_id"`
 	CommentID  string `json:"comment_id"`
 	AuthorType string `json:"author_type"`
 	AuthorName string `json:"author_name"`
 	Content    string `json:"content"`
+}
+
+func (s *TaskSupplement) deliveryID() string {
+	if s.MessageID != "" {
+		return s.MessageID
+	}
+	return s.CommentID
 }
 
 func (c *Client) ClaimTaskSupplement(ctx context.Context, taskID string) (*TaskSupplement, error) {
@@ -449,7 +457,7 @@ func (c *Client) ClaimTaskSupplement(ctx context.Context, taskID string) (*TaskS
 	}, &supplement); err != nil {
 		return nil, err
 	}
-	if supplement.CommentID == "" {
+	if supplement.CommentID == "" && supplement.MessageID == "" {
 		return nil, nil
 	}
 	return &supplement, nil

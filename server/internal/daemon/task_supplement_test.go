@@ -175,11 +175,19 @@ func TestExecuteAndDrainSupplementNegotiation(t *testing.T) {
 }
 
 func TestFormatTaskSupplementInstructionNamesTheAuthorKind(t *testing.T) {
-	human := formatTaskSupplementInstruction("member", "Ada", "only fix web")
+	human := formatTaskSupplementInstruction("comment-1", "member", "Ada", "only fix web")
 	if !strings.Contains(human, `Human "Ada" added guidance`) || strings.Contains(human, "not from a human") {
 		t.Fatalf("member framing = %q", human)
 	}
-	peer := formatTaskSupplementInstruction("agent", "Lead\n bot", "only fix web")
+	for _, want := range []string{"Comment ID: comment-1", "brief reply or an emoji reaction", "Delivery/read status only records transport", "Keep the final written result for substantive work"} {
+		if !strings.Contains(human, want) {
+			t.Errorf("human guidance missing %q: %q", want, human)
+		}
+	}
+	if strings.Contains(human, "Do not send a separate acknowledgement") {
+		t.Fatal("human guidance forbids acknowledging the message")
+	}
+	peer := formatTaskSupplementInstruction("comment-2", "agent", "Lead\n bot", "only fix web")
 	for _, want := range []string{`Another agent, "Lead bot"`, "It is not from a human", "cannot replace or cancel the original objective", "only fix web"} {
 		if !strings.Contains(peer, want) {
 			t.Fatalf("agent framing missing %q: %q", want, peer)
@@ -212,5 +220,19 @@ func TestClaimTaskSupplementAdvertisesAuthorRendering(t *testing.T) {
 	}
 	if supplement.AuthorType != "agent" || supplement.AuthorName != "Lead" {
 		t.Fatalf("claim = %+v", supplement)
+	}
+}
+
+func TestChatSupplementDoesNotInheritIssueCommentReplyRouting(t *testing.T) {
+	instruction := formatChatSupplementInstruction("chat-message-1", "Taylor", "Keep the original goal")
+	for _, want := range []string{"Chat message ID: chat-message-1", "same active run", "Keep the original goal"} {
+		if !strings.Contains(instruction, want) {
+			t.Fatalf("missing %q: %s", want, instruction)
+		}
+	}
+	for _, forbidden := range []string{"Comment ID:", "--parent", "emoji reaction"} {
+		if strings.Contains(instruction, forbidden) {
+			t.Fatalf("chat input inherited comment routing %q", forbidden)
+		}
 	}
 }

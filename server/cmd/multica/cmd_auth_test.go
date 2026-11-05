@@ -40,6 +40,13 @@ func TestMain(m *testing.M) {
 		fmt.Fprintf(os.Stderr, "isolate cmd/multica test home: %v\n", err)
 		os.Exit(1)
 	}
+	// Keep the checkout's daemon-task marker out of ordinary CLI fixtures.
+	// Tests of managed execution create and enter their own marked directories.
+	if err := os.Chdir(scratchHome); err != nil {
+		fmt.Fprintf(os.Stderr, "isolate cmd/multica test directory: %v\n", err)
+		_ = os.RemoveAll(scratchHome)
+		os.Exit(1)
+	}
 
 	code := m.Run()
 	_ = os.RemoveAll(scratchHome)

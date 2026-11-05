@@ -881,6 +881,7 @@ export function useChatController(opts?: { isActive?: boolean }) {
     handleRestoreDraftApplied,
     // compose-box focus nonce (bumped on new chat)
     focusInputRequest,
+    requestInputFocus,
     conversationStarterRequest,
     handleConversationStarterApplied,
     sendConversationStarter,

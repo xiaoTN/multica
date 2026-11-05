@@ -1048,7 +1048,7 @@ function CommentCardImpl({
     sources: [entry, ...replies].filter((e) => e.type === "comment")
       .map((e) => ({ id: e.id, name: e.actor_name || getActorName(e.actor_type, e.actor_id), revision: e.revision })),
     enabled: !!currentUserId,
-    onAdded: () => { if (replyFolded) onResolvedExpandChange?.(entry.id, true); },
+    onConfirmed: () => { if (replyFolded) onResolvedExpandChange?.(entry.id, true); },
   });
   const isCollapsed = useCommentCollapseStore((s) => s.isCollapsed(issueId, entry.id));
   const toggleCollapse = useCommentCollapseStore((s) => s.toggle);
@@ -1532,6 +1532,7 @@ function CommentCardImpl({
                   avatarId={currentUserId ?? ""}
                   draftKey={`reply:${issueId}:${entry.id}`}
                   onEditAnnotation={(id) => annotation.editAnnotation(id, true)}
+                  annotationFocusRequest={annotation.focusRequest}
                   steerByDefault={steerThreadRunByDefault}
                   onSubmit={(content, attachmentIds, suppressAgentIds, steerTaskIds) => replyTargetMissing ? Promise.resolve(false) : onReply(replyTargetId, content, attachmentIds, suppressAgentIds, steerTaskIds)}
                   onAccepted={onReplyAccepted}

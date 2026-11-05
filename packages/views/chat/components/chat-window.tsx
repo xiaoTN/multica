@@ -901,6 +901,7 @@ export function ChatWindow() {
           <ChatWindowMessages
             ref={messageListRef}
             annotationDraftKey={activeSessionId ?? undefined}
+            onAnnotationConfirmed={requestInputFocus}
             sessionId={activeSessionId}
             pendingTask={pendingTask}
             pendingTaskLoading={pendingTaskLoading}

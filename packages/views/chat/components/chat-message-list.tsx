@@ -70,6 +70,7 @@ export interface ChatMessageListRef {
 interface ChatMessageListProps {
   ref?: Ref<ChatMessageListRef>;
   annotationDraftKey?: string;
+  onAnnotationConfirmed?: () => void;
   /** Pause bottom-stick effects while a closing floating window fades out. */
   active?: boolean;
   /**
@@ -196,6 +197,7 @@ const LIST_COMPONENTS: Components<ChatRenderItem, ChatListContext> = {
 export function ChatMessageList({
   ref,
   annotationDraftKey,
+  onAnnotationConfirmed,
   active = true,
   revealKey = null,
   onRevealed,
@@ -214,7 +216,7 @@ export function ChatMessageList({
 }: ChatMessageListProps) {
   const { cardRef: containerRef, captureProps, popup, editAnnotation } = useChatReplySelection(
     annotationDraftKey ?? "", messages.map((message) => ({ id: message.id, name: message.role })),
-    active && !!annotationDraftKey,
+    active && !!annotationDraftKey, onAnnotationConfirmed,
   );
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollContainerEl, setScrollContainerEl] = useState<HTMLDivElement | null>(null);

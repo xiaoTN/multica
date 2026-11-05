@@ -7,6 +7,30 @@ function makeHandle() {
 }
 
 describe("useLazyEditor", () => {
+  it("focuses each explicit request once, including one received before mounting", () => {
+    const handle = makeHandle();
+    const editorRef = { current: handle as LazyEditorHandle };
+    const first = { current: true };
+    const { result, rerender } = renderHook(
+      ({ focusRequest }) => useLazyEditor({ editorRef, focusRequest }),
+      { initialProps: { focusRequest: { current: false } } },
+    );
+    expect(result.current.active).toBe(false);
+    rerender({ focusRequest: first });
+    expect(result.current.active).toBe(true);
+    expect(handle.focus).not.toHaveBeenCalled();
+    act(() => result.current.onReady());
+    expect(handle.focus).toHaveBeenCalledTimes(1);
+    rerender({ focusRequest: first });
+    expect(handle.focus).toHaveBeenCalledTimes(1);
+    rerender({ focusRequest: { current: true } });
+    expect(handle.focus).toHaveBeenCalledTimes(2);
+    // A virtualized thread can remount while its owner keeps the request.
+    const remounted = renderHook(() => useLazyEditor({ editorRef, focusRequest: first }));
+    expect(remounted.result.current.active).toBe(false);
+    expect(handle.focus).toHaveBeenCalledTimes(2);
+  });
+
   it("starts static, activates on intent, focuses at the click coords once ready", () => {
     const handle = makeHandle();
     const editorRef = { current: handle as LazyEditorHandle };

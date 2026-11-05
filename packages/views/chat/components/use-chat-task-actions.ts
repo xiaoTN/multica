@@ -6,10 +6,7 @@ import { toast } from "sonner";
 import { api, ApiError } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { chatKeys } from "@multica/core/chat/queries";
-import {
-  prioritizePendingChatTask,
-  removePendingChatTask,
-} from "@multica/core/chat/pending";
+import { removePendingChatTask } from "@multica/core/chat/pending";
 import { removeChatMessageFromCaches } from "@multica/core/realtime";
 import { createLogger } from "@multica/core/logger";
 import type {
@@ -194,24 +191,10 @@ export function useChatTaskActions(
       const pendingKey = chatKeys.pendingTask(activeSessionId);
       await qc.cancelQueries({ queryKey: pendingKey });
       const pendingSnapshot = qc.getQueryData<ChatPendingTask>(pendingKey);
-      qc.setQueryData<ChatPendingTask>(
-        pendingKey,
-        (old) => prioritizePendingChatTask(old, taskId),
-      );
-      let prioritizeSucceeded = false;
       try {
-        const result = await api.prioritizeQueuedChatTask(activeSessionId, taskId);
-        if (result.task_id !== taskId) throw new Error("invalid prioritize response");
-        prioritizeSucceeded = true;
-        if (result.active_task_id) {
-          const cancelled = await cancelChatTask(result.active_task_id, activeSessionId, {
-            restoreDraftToInput: true,
-            source: "queued-message-send-now",
-          });
-          if (!cancelled) throw new Error("current task could not be stopped");
-        }
+        if (!pendingSnapshot?.task_id) throw new Error("no current run");
+        await api.steerQueuedChatTask(activeSessionId, taskId, pendingSnapshot.task_id);
       } catch (err) {
-        if (!prioritizeSucceeded) qc.setQueryData(pendingKey, pendingSnapshot);
         apiLogger.warn("sendQueuedTaskNow.error", {
           taskId,
           sessionId: activeSessionId,
@@ -224,9 +207,12 @@ export function useChatTaskActions(
         );
       } finally {
         qc.invalidateQueries({ queryKey: pendingKey });
+        qc.invalidateQueries({ queryKey: chatKeys.messages(activeSessionId) });
+        qc.invalidateQueries({ queryKey: chatKeys.messagesPage(activeSessionId) });
+        if (wsId) qc.invalidateQueries({ queryKey: chatKeys.pendingTasks(wsId) });
       }
     },
-    [activeSessionId, cancelChatTask, qc, t],
+    [activeSessionId, qc, t, wsId],
   );
 
   return {

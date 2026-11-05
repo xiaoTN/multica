@@ -9,9 +9,63 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
+
+func (h *Handler) SteerQueuedChatTask(w http.ResponseWriter, r *http.Request) {
+	userID, ok := requireUserID(w, r)
+	if !ok {
+		return
+	}
+	session, ok := h.gatePublicChatSessionForUser(w, r, userID, ctxWorkspaceID(r.Context()), chi.URLParam(r, "sessionId"))
+	if !ok {
+		return
+	}
+	queuedID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "taskId"), "task id")
+	if !ok {
+		return
+	}
+	var req struct {
+		ExpectedTaskID string `json:"expected_task_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	targetID, ok := parseUUIDOrBadRequest(w, req.ExpectedTaskID, "expected_task_id")
+	if !ok {
+		return
+	}
+	agent, err := h.Queries.GetAgent(r.Context(), session.AgentID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load chat agent")
+		return
+	}
+	actorType, actorID := h.resolveActor(r, userID, ctxWorkspaceID(r.Context()))
+	if !h.canInvokeAgent(r.Context(), agent, actorType, actorID, h.invokeOriginatorFromRequest(r, actorType, actorID), ctxWorkspaceID(r.Context())) {
+		h.writeDispatchBlocked(w, http.StatusForbidden, ReasonInvocationNotAllowed)
+		return
+	}
+	sent, err := h.TaskService.SteerQueuedChatTask(r.Context(), session, queuedID, targetID)
+	if err != nil {
+		if errors.Is(err, service.ErrChatSteerUnavailable) || errors.Is(err, service.ErrChatSessionArchived) || errors.Is(err, service.ErrChatTaskAgentArchived) {
+			writeError(w, http.StatusConflict, "queued message cannot be added to this run")
+		} else {
+			writeError(w, http.StatusInternalServerError, "failed to steer queued message")
+		}
+		return
+	}
+	if h.DaemonTaskSupplement != nil {
+		h.DaemonTaskSupplement.NotifyTaskSupplementAvailable(uuidToString(sent.Task.RuntimeID), uuidToString(sent.Task.ID))
+	}
+	h.publishChat(protocol.EventChatMessage, uuidToString(session.WorkspaceID), "member", uuidToString(session.CreatorID), uuidToString(session.ID), protocol.ChatMessagePayload{
+		ChatSessionID: uuidToString(session.ID), MessageID: uuidToString(sent.Message.ID), Role: "user", Content: sent.Message.Content,
+		TaskID: uuidToString(sent.Task.ID), CreatedAt: timestampToString(sent.Message.CreatedAt),
+	})
+	writeJSON(w, http.StatusOK, SendChatMessageResponse{MessageID: uuidToString(sent.Message.ID), TaskID: uuidToString(sent.Task.ID), CreatedAt: timestampToString(sent.Task.CreatedAt), MessageCreatedAt: timestampToString(sent.Message.CreatedAt), Steered: true, SupportsQueue: true})
+}
 
 func (h *Handler) applyChatDeliveryReceipts(ctx context.Context, sessionID pgtype.UUID, messages []ChatMessageResponse) {
 	rows, err := h.Queries.ListChatTaskSupplements(ctx, sessionID)

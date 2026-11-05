@@ -62,6 +62,68 @@ func TestChatSteerKeepsTheRunningTurn(t *testing.T) {
 	}
 }
 
+func TestQueuedChatSteerPreservesOriginalPrompt(t *testing.T) {
+	sessionID, taskID, _ := chatSteerFixture(t)
+	original := dbfx.Insert(t, "chat_message", testutil.Cols{"chat_session_id": sessionID, "task_id": taskID, "role": "user", "content": "Message A"})
+	var queued SendChatMessageResponse
+	sendChatAddition(t, sessionID, taskID, "queue").Want(http.StatusCreated).JSON(&queued)
+	req := withChatTestWorkspaceCtx(t, withURLParams(newRequest(http.MethodPost, "/steer", map[string]any{"expected_task_id": taskID}), "sessionId", sessionID, "taskId", queued.TaskID))
+	var sent SendChatMessageResponse
+	testutil.Call(t, testHandler.SteerQueuedChatTask, req).Want(http.StatusOK).JSON(&sent)
+	if sent.MessageID != queued.MessageID || sent.TaskID != taskID || !sent.Steered || sent.Queued {
+		t.Fatalf("steer = %+v, queued = %+v", sent, queued)
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM chat_message WHERE id=$1`, original); n != 1 {
+		t.Fatalf("original prompt was withdrawn: %d", n)
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM agent_task_queue WHERE id=$1 AND status='running'`, taskID); n != 1 {
+		t.Fatal("original run was stopped")
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM chat_draft_restore WHERE chat_session_id=$1`, sessionID); n != 0 {
+		t.Fatalf("unexpected restored draft: %d", n)
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM chat_task_supplement WHERE message_id=$1 AND task_id=$2`, queued.MessageID, taskID); n != 1 {
+		t.Fatal("queued message did not enter the running turn")
+	}
+	retry := withChatTestWorkspaceCtx(t, withURLParams(newRequest(http.MethodPost, "/steer", map[string]any{"expected_task_id": taskID}), "sessionId", sessionID, "taskId", queued.TaskID))
+	testutil.Call(t, testHandler.SteerQueuedChatTask, retry).Want(http.StatusConflict)
+}
+
+func TestQueuedChatSteerRefusalPreservesMessagesAndQueue(t *testing.T) {
+	for _, cause := range []string{"unsupported", "completed", "already_claimed", "another_session", "attachment", "invalid_target"} {
+		t.Run(cause, func(t *testing.T) {
+			sessionID, taskID, _ := chatSteerFixture(t)
+			var queued SendChatMessageResponse
+			sendChatAddition(t, sessionID, taskID, "queue").Want(http.StatusCreated).JSON(&queued)
+			expectedStatus := http.StatusConflict
+			targetID := taskID
+			switch cause {
+			case "unsupported":
+				dbfx.Exec(t, `DELETE FROM task_supplement_capability WHERE task_id=$1`, taskID)
+			case "completed":
+				completeTaskViaDaemon(t, taskID)
+			case "already_claimed":
+				dbfx.Exec(t, `UPDATE agent_task_queue SET status='dispatched' WHERE id=$1`, queued.TaskID)
+			case "another_session":
+				dbfx.Exec(t, `UPDATE agent_task_queue SET chat_session_id=NULL WHERE id=$1`, queued.TaskID)
+			case "attachment":
+				dbfx.Insert(t, "attachment", testutil.Cols{"workspace_id": testWorkspaceID, "chat_session_id": sessionID, "chat_message_id": queued.MessageID, "uploader_type": "member", "uploader_id": testUserID, "filename": "image.png", "url": "/image.png", "content_type": "image/png", "size_bytes": 1})
+			case "invalid_target":
+				targetID = "not-a-uuid"
+				expectedStatus = http.StatusBadRequest
+			}
+			req := withChatTestWorkspaceCtx(t, withURLParams(newRequest(http.MethodPost, "/steer", map[string]any{"expected_task_id": targetID}), "sessionId", sessionID, "taskId", queued.TaskID))
+			testutil.Call(t, testHandler.SteerQueuedChatTask, req).Want(expectedStatus)
+			if n := dbfx.Count(t, `SELECT count(*) FROM chat_message WHERE id=$1 AND task_id=$2`, queued.MessageID, queued.TaskID); n != 1 {
+				t.Fatal("refused input changed")
+			}
+			if n := dbfx.Count(t, `SELECT count(*) FROM chat_task_supplement WHERE message_id=$1`, queued.MessageID); n != 0 {
+				t.Fatal("refused input was delivered")
+			}
+		})
+	}
+}
+
 func TestChatSteerRefusesUnavailableExactTurnWithoutQueueing(t *testing.T) {
 	for _, cause := range []string{"completed", "unsupported", "another_session"} {
 		t.Run(cause, func(t *testing.T) {

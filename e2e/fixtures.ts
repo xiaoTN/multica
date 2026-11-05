@@ -497,6 +497,11 @@ export class TestApiClient {
     return this.token;
   }
 
+  async acknowledgeCancelledTask(taskId: string) {
+    const response = await this.authedFetch(`/api/daemon/tasks/${taskId}/cancel-ack`, { method: "POST", body: "{}" });
+    if (!response.ok) throw new Error(`cancel acknowledgement failed: ${response.status}`);
+  }
+
   getEmail() {
     if (!this.email) {
       throw new Error("Test API client is not logged in");

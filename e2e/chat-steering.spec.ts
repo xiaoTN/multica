@@ -22,13 +22,16 @@ test("Enter adds chat input to the exact running turn", async ({ page }, testInf
   let runId: string | undefined;
   try {
     const workspace = (await api.getWorkspaces())[0]!;
+    api.setWorkspaceId(workspace.id);
     const user = await database.query(`SELECT id FROM "user" WHERE email=$1`, [api.getEmail()]);
     const userId = user.rows[0].id;
     runtimeId = (await database.query(`INSERT INTO agent_runtime (workspace_id, name, runtime_mode, provider, status, device_info, metadata, owner_id, last_seen_at) VALUES ($1,'Chat steer verification','cloud','codex','online','E2E fixture','{}',$2,now()) RETURNING id`, [workspace.id, userId])).rows[0].id;
     agentId = (await database.query(`INSERT INTO agent (workspace_id,name,description,instructions,runtime_mode,runtime_config,runtime_id,visibility,permission_mode,max_concurrent_tasks,owner_id) VALUES ($1,'Chat steer verification','','','cloud','{}',$2,'private','private',1,$3) RETURNING id`, [workspace.id, runtimeId, userId])).rows[0].id;
     sessionId = (await database.query(`INSERT INTO chat_session (workspace_id,agent_id,creator_id,title,status,explicitly_created_at) VALUES ($1,$2,$3,'Enter steering verification','active',now()) RETURNING id`, [workspace.id, agentId, userId])).rows[0].id;
     runId = (await database.query(`INSERT INTO agent_task_queue (agent_id,runtime_id,chat_session_id,status,dispatched_at,started_at) VALUES ($1,$2,$3,'running',now(),now()) RETURNING id`, [agentId,runtimeId,sessionId])).rows[0].id;
+    await database.query(`UPDATE agent_task_queue SET chat_input_task_id=id WHERE id=$1`,[runId]);
     await database.query(`INSERT INTO task_supplement_capability (task_id,workspace_id,capability) VALUES ($1,$2,'task-supplement-v1')`, [runId,workspace.id]);
+    const originalId = (await database.query(`INSERT INTO chat_message (chat_session_id,role,content,task_id) VALUES ($1,'user','Message A already sent',$2) RETURNING id`, [sessionId,runId])).rows[0].id;
     await page.addInitScript(token => {
       localStorage.setItem("multica_token", token!);
       localStorage.setItem("multica:chat:isOpen", "false");
@@ -39,7 +42,9 @@ test("Enter adds chat input to the exact running turn", async ({ page }, testInf
     await page.goto(`/${workspace.slug}/chat?session=${sessionId}`, { waitUntil: "domcontentloaded" });
     const editor = page.locator('.ProseMirror[contenteditable="true"]').last();
     await expect(editor).toBeVisible({timeout: 45_000});
+    await expect(page.getByRole("combobox", {name:"When replying to a running agent"})).toBeVisible();
     await editor.fill("Enter steering browser evidence");
+    await expect(page.getByRole("button", {name:"Add to current run",exact:true})).toBeEnabled();
     await page.screenshot({ path: testInfo.outputPath("chat-steer-compose.png") });
     const posted = page.waitForResponse(response => response.request().method()==="POST" && response.url().endsWith(`/sessions/${sessionId}/messages`), { timeout: 15_000 });
     await editor.press("Enter");
@@ -64,6 +69,22 @@ test("Enter adds chat input to the exact running turn", async ({ page }, testInf
     expect(queued.request().postDataJSON()).toMatchObject({mode: "queue", expected_task_id: runId});
     expect(await queued.json()).toMatchObject({steered: false, queued: true});
     expect((await database.query(`SELECT id FROM agent_task_queue WHERE chat_session_id=$1`,[sessionId])).rows).toHaveLength(2);
+    const actionResponse = page.waitForResponse(r => r.request().method()==="POST" && /queued-tasks\/[^/]+\/(prioritize|steer)$/.test(r.url()));
+    const cancellation = page.waitForResponse(r => r.url().endsWith(`/tasks/${runId}/cancel`),{timeout:5000}).catch(() => null);
+    await page.getByRole("button", { name: "Steer", exact: true }).click();
+    const action = await actionResponse;
+    expect(action.status()).toBe(200);
+    if (action.url().endsWith("/prioritize")) {
+      expect(await cancellation).not.toBeNull();
+      await api.acknowledgeCancelledTask(runId!);
+      await page.reload({waitUntil:"domcontentloaded"});
+      await expect(page.getByRole("combobox", {name:"When replying to a running agent"})).toBeVisible();
+    }
+    await expect(page.locator('[data-slot="chat-queue-shell"]')).toHaveCount(0);
+    await page.screenshot({path:testInfo.outputPath("chat-continuous-after-steer.png")});
+    await expect(editor).toHaveText("");
+    await expect(page.getByText("Message A already sent", {exact:true})).toBeVisible();
+    expect((await database.query(`SELECT id FROM chat_message WHERE id=$1`,[originalId])).rows).toHaveLength(1);
     await testInfo.attach("delivery-identifiers", {body: JSON.stringify({message_id:sent.message_id,task_id:runId,request:response.request().postDataJSON()},null,2),contentType:"application/json"});
   } finally {
     if (sessionId) await database.query(`DELETE FROM chat_task_supplement WHERE chat_session_id=$1`,[sessionId]);

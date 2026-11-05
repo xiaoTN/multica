@@ -10,6 +10,11 @@ FOR UPDATE OF t;
 INSERT INTO chat_task_supplement (message_id, task_id, chat_session_id, author_id, status)
 VALUES (@message_id, @task_id, @chat_session_id, @author_id, 'pending');
 
+-- name: MoveQueuedChatMessageToRun :one
+UPDATE chat_message SET task_id = @target_task_id
+WHERE id = @id AND task_id = @queued_task_id AND role = 'user'
+RETURNING *;
+
 -- name: ClaimNextChatTaskSupplement :one
 WITH next AS MATERIALIZED (
     SELECT s.message_id FROM chat_task_supplement s

@@ -257,6 +257,44 @@ func (q *Queries) LockChatSupplementTarget(ctx context.Context, arg LockChatSupp
 	return i, err
 }
 
+const moveQueuedChatMessageToRun = `-- name: MoveQueuedChatMessageToRun :one
+UPDATE chat_message SET task_id = $1
+WHERE id = $2 AND task_id = $3 AND role = 'user'
+RETURNING id, chat_session_id, role, content, task_id, created_at, failure_reason, elapsed_ms, message_kind, channel_media_pending_until, channel_ingested, quick_actions, channel_context_revision, channel_outbound_type, channel_outbound_installation_id, channel_outbound_chat_id, channel_outbound_message_ids, channel_typing_settled
+`
+
+type MoveQueuedChatMessageToRunParams struct {
+	TargetTaskID pgtype.UUID `json:"target_task_id"`
+	ID           pgtype.UUID `json:"id"`
+	QueuedTaskID pgtype.UUID `json:"queued_task_id"`
+}
+
+func (q *Queries) MoveQueuedChatMessageToRun(ctx context.Context, arg MoveQueuedChatMessageToRunParams) (ChatMessage, error) {
+	row := q.db.QueryRow(ctx, moveQueuedChatMessageToRun, arg.TargetTaskID, arg.ID, arg.QueuedTaskID)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.ChatSessionID,
+		&i.Role,
+		&i.Content,
+		&i.TaskID,
+		&i.CreatedAt,
+		&i.FailureReason,
+		&i.ElapsedMs,
+		&i.MessageKind,
+		&i.ChannelMediaPendingUntil,
+		&i.ChannelIngested,
+		&i.QuickActions,
+		&i.ChannelContextRevision,
+		&i.ChannelOutboundType,
+		&i.ChannelOutboundInstallationID,
+		&i.ChannelOutboundChatID,
+		&i.ChannelOutboundMessageIds,
+		&i.ChannelTypingSettled,
+	)
+	return i, err
+}
+
 const settleTerminalChatTaskSupplements = `-- name: SettleTerminalChatTaskSupplements :exec
 UPDATE chat_task_supplement s SET status = 'failed', failure_reason = 'turn_ended'
 FROM agent_task_queue t WHERE s.task_id = t.id AND t.id = ANY($1::uuid[])

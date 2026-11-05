@@ -2532,6 +2532,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/pending-task", h.GetPendingChatTask)
 					r.Delete("/queued-tasks", h.ClearQueuedChatTasks)
 					r.Post("/queued-tasks/{taskId}/prioritize", h.PrioritizeQueuedChatTask)
+					r.Post("/queued-tasks/{taskId}/steer", h.SteerQueuedChatTask)
 					r.Post("/read", h.MarkChatSessionRead)
 					// Deferred-cancellation draft restores (#5219):
 					// creator-only fetch + idempotent consume.

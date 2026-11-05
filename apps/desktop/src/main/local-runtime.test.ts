@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
@@ -60,4 +60,34 @@ it("缺少预先准备的镜像时明确报错，运行时不联网下载", asyn
     .rejects.toThrow("缺少本机数据库镜像");
   expect(startServer).not.toHaveBeenCalled();
   expect(command.mock.calls.some(([, args]) => args[0] === "pull")).toBe(false);
+});
+
+it("应用安装目录被替换后仍能读取旧附件并写入新附件，迁移不覆盖已有数据", async () => {
+  const options = await setup();
+  options.resourcesDir = join(options.dataDir, "旧安装", "resources");
+  const legacyUploads = join(options.resourcesDir, "data", "uploads");
+  const persistentUploads = join(options.dataDir, "uploads");
+  await mkdir(legacyUploads, { recursive: true });
+  await mkdir(persistentUploads, { recursive: true });
+  await writeFile(join(legacyUploads, "原图.png"), "旧附件");
+  await writeFile(join(legacyUploads, "已有.png"), "旧安装中的副本");
+  await writeFile(join(persistentUploads, "已有.png"), "已恢复的附件");
+
+  let ready = false;
+  const startServer = vi.fn(async (_file: string, env: NodeJS.ProcessEnv, cwd: string) => {
+    expect(env.LOCAL_UPLOAD_DIR).toBe(persistentUploads);
+    expect(env.LOCAL_UPLOAD_BASE_URL).toBe(options.apiUrl);
+    expect(cwd).toBe(options.dataDir);
+    ready = true;
+  });
+  await ensureLocalRuntime({
+    ...options,
+    dependencies: { command: async () => "ok", startServer, probe: async () => ready },
+  });
+
+  await rm(options.resourcesDir, { recursive: true });
+  expect(await readFile(join(persistentUploads, "原图.png"), "utf8")).toBe("旧附件");
+  expect(await readFile(join(persistentUploads, "已有.png"), "utf8")).toBe("已恢复的附件");
+  await writeFile(join(persistentUploads, "新图.png"), "更新后的附件");
+  expect(await readFile(join(persistentUploads, "新图.png"), "utf8")).toBe("更新后的附件");
 });

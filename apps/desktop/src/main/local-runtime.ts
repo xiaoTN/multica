@@ -1,7 +1,7 @@
 import { execFile, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, open, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, open, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import { fetchLocal } from "./local-fetch";
@@ -107,6 +107,13 @@ export async function ensureLocalRuntime(options: {
   if (await deps.probe()) return;
 
   await mkdir(dataDir, { recursive: true, mode: 0o700 });
+  // 附件属于用户数据，安装目录被更新或移走时仍须保留。
+  const uploadDir = join(dataDir, "uploads");
+  await mkdir(uploadDir, { recursive: true, mode: 0o700 });
+  const legacyUploadDir = join(resourcesDir, "data", "uploads");
+  if (existsSync(legacyUploadDir)) {
+    await cp(legacyUploadDir, uploadDir, { recursive: true, force: false, errorOnExist: false });
+  }
   const settings = await loadSettings(dataDir);
   const docker = ["/opt/homebrew/bin/docker", "/usr/local/bin/docker"].find(existsSync) ?? "docker";
   try {
@@ -126,6 +133,7 @@ export async function ensureLocalRuntime(options: {
     DATABASE_REPLICA_URL: "", REDIS_URL: "", JWT_SECRET: settings.jwtSecret,
     APP_ENV: "production", PORT: new URL(apiUrl).port || "8080",
     MULTICA_PUBLIC_URL: apiUrl, MULTICA_APP_URL: appUrl, FRONTEND_ORIGIN: appUrl,
+    LOCAL_UPLOAD_DIR: uploadDir, LOCAL_UPLOAD_BASE_URL: apiUrl,
     MULTICA_DEV_VERIFICATION_CODE: "", ALLOW_SIGNUP: "false",
   };
   let exists = false;
@@ -154,7 +162,7 @@ export async function ensureLocalRuntime(options: {
   const suffix = process.platform === "win32" ? ".exe" : "";
   const migrate = join(resourcesDir, "bin", `agent-team-migrate${suffix}`);
   const server = join(resourcesDir, "bin", `agent-team-server${suffix}`);
-  await deps.command(migrate, ["up"], { env, cwd: resourcesDir, timeout: 120_000 });
-  await deps.startServer(server, env, resourcesDir, join(dataDir, "server.log"));
+  await deps.command(migrate, ["up"], { env, cwd: dataDir, timeout: 120_000 });
+  await deps.startServer(server, env, dataDir, join(dataDir, "server.log"));
   await waitUntil(deps.probe, "本机后台", 45_000);
 }

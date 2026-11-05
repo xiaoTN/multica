@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useSyncExternalStore } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { notifyManager, useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { restrictToFirstScrollableAncestor, restrictToVerticalAxis } from "@dnd-kit/modifiers";
@@ -52,17 +52,14 @@ function usePrefetch(wsId: string, source: string, request: SidebarIssuesRequest
   };
 }
 
-/**
- * The id of the issue an expanded row lists or keeps under `ref` — its UUID,
- * or an identifier like `MUL-123` matched case-insensitively as the server
- * does — or `null` when no expanded row lists it.
- */
+/** 查找展开列表中显示或保留的任务，支持 UUID 和不区分大小写的任务编号；未显示时返回 null。 */
 export function useIssueIdInTree(wsId: string, ref: string | null): string | null {
   const qc = useQueryClient();
   const cache = qc.getQueryCache();
   const subscribe = useCallback(
     (onChange: () => void) => {
-      const unsubscribeCache = cache.subscribe(onChange);
+      // 查询可能在子组件渲染时创建，沿用 Query 的通知调度，避免同步更新父组件。
+      const unsubscribeCache = cache.subscribe(notifyManager.batchCalls(onChange));
       const unsubscribeKept = useSidebarKeptStore.subscribe(onChange);
       return () => {
         unsubscribeCache();
@@ -81,7 +78,7 @@ export function useIssueIdInTree(wsId: string, ref: string | null): string | nul
       const issue = (query.state.data as ListIssuesResponse | undefined)?.issues?.find(matches);
       if (issue) return issue.id;
     }
-    // A shown list keeps the open issue its query dropped (`useKeptActiveItem`).
+    // 列表查询移除当前任务后，仍沿用 useKeptActiveItem 保留的任务行。
     for (const [list, held] of Object.entries(useSidebarKeptStore.getState().held)) {
       const issue = qc.getQueryData<Issue>(issueKeys.detail(wsId, held.id));
       if (issue && matches(issue) && shown([...issueKeys.sidebarAll(wsId), list]).length > 0) return issue.id;

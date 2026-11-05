@@ -91,6 +91,7 @@ import {
   NotificationGate,
   parseNativeNotificationPayload,
 } from "./notification-gate";
+import { UnreadBadge } from "./unread-badge";
 
 configureLinuxFileDialogs(app.commandLine);
 app.commandLine.appendSwitch("disable-background-networking");
@@ -180,7 +181,7 @@ const mainRendererMessages = new MainRendererMessageQueue<BrowserWindow>(
   },
   (window) => !window.isDestroyed() && mainWindows.has(window),
 );
-const unreadBadgeCounts = new Map<BrowserWindow, number>();
+const unreadBadge = new UnreadBadge<BrowserWindow>(app, process.platform);
 let desktopInitialized = false;
 let authSessionGeneration = 0;
 const rendererRouteContexts = new WeakMap<
@@ -299,16 +300,6 @@ function scheduleWindowSessionSave(): void {
 function freezeWindowSession(): void {
   saveWindowSession();
   windowSessionFrozen = true;
-}
-
-function applyUnreadBadge(): void {
-  let count = 0;
-  for (const value of unreadBadgeCounts.values()) count += value;
-  if (process.platform === "darwin") {
-    app.dock?.setBadge(count === 0 ? "" : count > 99 ? "99+" : String(count));
-  } else {
-    app.setBadgeCount(count);
-  }
 }
 
 function handleDeepLink(url: string): void {
@@ -488,7 +479,7 @@ function createMainWindow(saved: WindowState = {}): BrowserWindow {
     mainWindows.remove(window);
     authSessionCoordinator.unregisterMainWindow(window);
     mainRendererMessages.release(window, mainWindows.mostRecent());
-    if (unreadBadgeCounts.delete(window)) applyUnreadBadge();
+    unreadBadge.remove(window);
     if (mainWindows.size > 0) saveWindowSession();
   });
 
@@ -942,6 +933,7 @@ if (!gotTheLock) {
         if (accountInvalidated) {
           authSessionGeneration += 1;
           mainRendererMessages.clear("inbox:open");
+          unreadBadge.clear();
         }
         return;
       }
@@ -1017,13 +1009,12 @@ if (!gotTheLock) {
     // counts its own workspace's unread items; the badge shows the total.
     ipcMain.on("badge:set", (event, rawCount: unknown) => {
       const window = BrowserWindow.fromWebContents(event.sender);
-      if (!window || !mainWindows.has(window)) return;
-      const count =
-        typeof rawCount === "number" && Number.isFinite(rawCount)
-          ? Math.max(0, Math.floor(rawCount))
-          : 0;
-      unreadBadgeCounts.set(window, count);
-      applyUnreadBadge();
+      if (
+        !window ||
+        !mainWindows.has(window) ||
+        !authSessionCoordinator.hasActiveMainSession(window)
+      ) return;
+      unreadBadge.set(window, rawCount);
     });
 
     desktopInitialized = true;

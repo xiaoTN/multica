@@ -687,14 +687,14 @@
       },
       "cloud": {
         "title": "Ou un nœud cloud",
-        "description": "Pas envie de gérer des machines ? Créez un nœud cloud hébergé par Multica."
+        "description": "Pas envie de gérer des machines ? Créez un nœud cloud hébergé par Agent团队协作."
       }
     },
     "art": {
       "this_computer": "Cet ordinateur · Bureau",
       "detected": "Harness détectés",
       "run_there": "À lancer sur cette machine",
-      "connected": "{{name}} connecté à Multica"
+      "connected": "{{name}} connecté à Agent团队协作"
     }
   }
 }

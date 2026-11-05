@@ -667,14 +667,14 @@
       },
       "cloud": {
         "title": "或者用雲端節點",
-        "description": "不想自己管機器？建立一臺 Multica 託管的雲節點。"
+        "description": "不想自己管機器？建立一臺 Agent团队协作 託管的雲節點。"
       }
     },
     "art": {
       "this_computer": "這臺電腦 · 桌面端",
       "detected": "自動識別到的 harness",
       "run_there": "在那臺機器上執行",
-      "connected": "{{name}} 已連接到 Multica"
+      "connected": "{{name}} 已連接到 Agent团队协作"
     }
   }
 }

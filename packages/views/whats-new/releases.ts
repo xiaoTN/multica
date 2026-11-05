@@ -145,7 +145,7 @@ export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
         action: { kind: "route", to: (p) => `${p.settings()}?tab=preferences` },
         copy: {
           en: {
-            title: "Multica in Traditional Chinese",
+            title: "Agent团队协作 in Traditional Chinese",
             body: "Switch the app language in Settings → Preferences.",
           },
           "zh-Hans": {
@@ -165,7 +165,7 @@ export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
             body: "설정 → 환경설정에서 앱 언어를 바꿀 수 있습니다.",
           },
           fr: {
-            title: "Multica en chinois traditionnel",
+            title: "Agent团队协作 en chinois traditionnel",
             body: "Changez la langue de l'application dans Paramètres → Préférences.",
           },
         },

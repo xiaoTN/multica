@@ -41,7 +41,7 @@
   "whats_new": {
     "trigger": "What's new",
     "card": {
-      "eyebrow": "Multica updated · {{range}}",
+      "eyebrow": "Agent团队协作 updated · {{range}}",
       "title_one": "{{count}} new feature since your last visit",
       "title_other": "{{count}} new features since your last visit",
       "dismiss": "Dismiss",

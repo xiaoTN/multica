@@ -667,14 +667,14 @@
       },
       "cloud": {
         "title": "クラウドノードも使える",
-        "description": "マシンを自分で管理したくないなら、Multica がホストするクラウドノードを作成できます。"
+        "description": "マシンを自分で管理したくないなら、Agent团队协作 がホストするクラウドノードを作成できます。"
       }
     },
     "art": {
       "this_computer": "このコンピューター · デスクトップ",
       "detected": "検出された harness",
       "run_there": "そのマシンで実行",
-      "connected": "{{name}} が Multica に接続されました"
+      "connected": "{{name}} が Agent团队协作 に接続されました"
     }
   }
 }

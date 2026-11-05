@@ -525,7 +525,7 @@
       "slides": {
         "event": {
           "title": "Wait for something to happen",
-          "description": "No need to keep an agent spinning while it waits. When the condition is met, Multica wakes it up."
+          "description": "No need to keep an agent spinning while it waits. When the condition is met, Agent团队协作 wakes it up."
         },
         "time": {
           "title": "Or pick a time",
@@ -548,7 +548,7 @@
   "intro": {
     "label": "Autopilot",
     "title": "Let agents start work on their own",
-    "description": "Set a schedule or a webhook. Each time it fires, Multica creates an issue for an agent, or runs the agent directly. Pick a template and adjust it.",
+    "description": "Set a schedule or a webhook. Each time it fires, Agent团队协作 creates an issue for an agent, or runs the agent directly. Pick a template and adjust it.",
     "templates": "Start from a template"
   }
 }

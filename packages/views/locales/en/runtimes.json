@@ -687,14 +687,14 @@
       },
       "cloud": {
         "title": "Or use a cloud node",
-        "description": "Rather not manage machines? Create a cloud node hosted by Multica."
+        "description": "Rather not manage machines? Create a cloud node hosted by Agent团队协作."
       }
     },
     "art": {
       "this_computer": "This computer · Desktop",
       "detected": "Detected harnesses",
       "run_there": "Run on that machine",
-      "connected": "{{name}} connected to Multica"
+      "connected": "{{name}} connected to Agent团队协作"
     }
   }
 }

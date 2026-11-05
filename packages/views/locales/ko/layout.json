@@ -41,7 +41,7 @@
   "whats_new": {
     "trigger": "새 기능",
     "card": {
-      "eyebrow": "Multica 업데이트 · {{range}}",
+      "eyebrow": "Agent团队协作 업데이트 · {{range}}",
       "title_other": "마지막 방문 이후 새 기능 {{count}}개가 추가되었습니다",
       "dismiss": "닫기",
       "view_details": "자세히 보기",

@@ -151,7 +151,7 @@ describe("WhatsNewLauncher", () => {
     renderLauncher();
 
     expect(dot()).toBeInTheDocument();
-    expect(screen.getByText("Multica updated · v0.2.0 → v0.3.0")).toBeInTheDocument();
+    expect(screen.getByText("Agent团队协作 updated · v0.2.0 → v0.3.0")).toBeInTheDocument();
     expect(screen.getByText("3 new features since your last visit")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Palette title" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Language title/ })).toBeInTheDocument();
@@ -190,7 +190,7 @@ describe("WhatsNewLauncher", () => {
     signIn({ whats_new_seen_version: null, created_at: "2026-02-10T08:00:00Z" });
     renderLauncher();
 
-    expect(screen.getByText("Multica updated · v0.3.0")).toBeInTheDocument();
+    expect(screen.getByText("Agent团队协作 updated · v0.3.0")).toBeInTheDocument();
     expect(screen.getByText("2 new features since your last visit")).toBeInTheDocument();
   });
 

@@ -525,7 +525,7 @@
       "slides": {
         "event": {
           "title": "Attendre qu'il se passe quelque chose",
-          "description": "Inutile de faire tourner un agent à vide en attendant. Dès que la condition est remplie, Multica le réveille."
+          "description": "Inutile de faire tourner un agent à vide en attendant. Dès que la condition est remplie, Agent团队协作 le réveille."
         },
         "time": {
           "title": "Ou choisir une heure",
@@ -548,7 +548,7 @@
   "intro": {
     "label": "Automatisation",
     "title": "Laissez vos agents se mettre au travail tout seuls",
-    "description": "Définissez une planification ou un webhook. À chaque déclenchement, Multica crée une tâche pour un agent, ou lance directement l'agent. Choisissez un modèle et adaptez-le.",
+    "description": "Définissez une planification ou un webhook. À chaque déclenchement, Agent团队协作 crée une tâche pour un agent, ou lance directement l'agent. Choisissez un modèle et adaptez-le.",
     "templates": "Partir d'un modèle"
   }
 }

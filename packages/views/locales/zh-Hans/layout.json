@@ -41,7 +41,7 @@
   "whats_new": {
     "trigger": "新功能",
     "card": {
-      "eyebrow": "Multica 已更新 · {{range}}",
+      "eyebrow": "Agent团队协作 已更新 · {{range}}",
       "title_other": "自你上次访问以来，新增了 {{count}} 项功能",
       "dismiss": "关闭",
       "view_details": "查看详情",

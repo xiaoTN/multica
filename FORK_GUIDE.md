@@ -30,14 +30,16 @@ git fetch upstream
 git fetch origin
 git switch main
 git merge --ff-only upstream/main
-git push origin main
 git switch codex/local-only
 git merge main
 ```
 
-如果合并发生冲突，逐个处理后完成合并提交，再按改动范围运行 [仓库检查](CONTRIBUTING.md) 并实际验收桌面和网页。确认可用后保存到个人 fork：
+如果合并发生冲突，逐个处理后完成合并提交，再按改动范围运行 [仓库检查](CONTRIBUTING.md) 并实际验收桌面和网页。代理完成本地 commit 后交付，推送遵循 [AGENTS.md 的交付规则](AGENTS.md#change-and-delivery-rules)。
+
+确认可用后，由用户手动执行以下命令，把本地提交同步到个人 fork：
 
 ```sh
+git push origin main
 git push origin codex/local-only
 ```
 

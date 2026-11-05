@@ -121,6 +121,7 @@ Workspace-scoped queries filter by `workspace_id`; membership gates access and `
 
 ## Change and Delivery Rules
 
+- 默认以本地 commit 交付，push 由用户手动执行；仅在用户明确要求本次 push 时推送，历史推送授权不作为后续默认授权。
 - Keep changes scoped; reuse existing patterns.
 - Before adding complexity for a speculative or vanishingly unlikely race or security edge case, explain the concrete failure mode, likelihood, and complexity cost to the user and get their buy-in. Do not silently expand scope for theoretical robustness.
 - Do not add internal compatibility shims, dual writes, fallback paths, or legacy adapters unless requested. This does not relax API response compatibility above.

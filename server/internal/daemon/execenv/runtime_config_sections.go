@@ -623,9 +623,9 @@ func writeWorkflowIssue(b *strings.Builder, ctx TaskContextForEnv) {
 		b.WriteString("3. If any part of what this turn will produce is what the issue itself asks for, set `in_progress` FIRST (skip when the issue is already `in_progress`, or when your Agent Identity forbids status writes): the board should show the issue being worked while you work, not only after. The kind of activity — research, design, planning, review — never decides this; only whether the output is part of THIS issue's ask. Then complete " + step3Rest)
 	}
 	if ctx.IsSquadLeader {
-		b.WriteString("4. **Post your final results as a comment** (unless your outcome is `no_action` — see the no_action rule in your Squad Operating Protocol): post it with `multica issue comment add` using the platform-correct non-inline mode from ## Comment Formatting (never inline `--content`). When the per-turn user message carries a triggering comment, reply in its thread with the `--parent` value it gives you for THIS turn (never one from an earlier turn); when it lists several threads, post one reply per thread. With no triggering comment, post a new top-level comment. Your results are only visible to the user if posted via this CLI call; text in your terminal or run logs is NOT delivered.\n")
+		b.WriteString("4. **Post your final results as a comment** (unless your outcome is `no_action` — see the no_action rule in your Squad Operating Protocol — or a reaction-only acknowledgement under ## Output): post it with `multica issue comment add` using the platform-correct non-inline mode from ## Comment Formatting (never inline `--content`). When the per-turn user message carries a triggering comment, reply in its thread with the `--parent` value it gives you for THIS turn (never one from an earlier turn); when it lists several threads, post one reply per thread. With no triggering comment, post a new top-level comment. Your results are only visible to the user if posted via this CLI call; text in your terminal or run logs is NOT delivered.\n")
 	} else {
-		b.WriteString("4. **Post your final results as a comment — this step is mandatory**: post it with `multica issue comment add` using the platform-correct non-inline mode from ## Comment Formatting (never inline `--content`). When the per-turn user message carries a triggering comment, reply in its thread with the `--parent` value it gives you for THIS turn (never one from an earlier turn); when it lists several threads, post one reply per thread. With no triggering comment, post a new top-level comment. `## Output` states why this call is the only delivery channel.\n")
+		b.WriteString("4. **Post your final results as a comment — this step is mandatory** (except a reaction-only acknowledgement under ## Output): post it with `multica issue comment add` using the platform-correct non-inline mode from ## Comment Formatting (never inline `--content`). When the per-turn user message carries a triggering comment, reply in its thread with the `--parent` value it gives you for THIS turn (never one from an earlier turn); when it lists several threads, post one reply per thread. With no triggering comment, post a new top-level comment. `## Output` defines visible response delivery.\n")
 	}
 	if ctx.HasProjectWorkflow {
 		b.WriteString("5. Before exiting, confirm the issue sits where things actually stand: you ran the matching command from `[Project workflow]`, or you left it at its current step on purpose because its work continues.\n\n")
@@ -891,17 +891,24 @@ func writeOutput(b *strings.Builder, kind taskKind, ctx TaskContextForEnv) {
 		}
 	default:
 		if ctx.IsSquadLeader {
-			b.WriteString("⚠️ **Final results MUST be delivered via `multica issue comment add`** — unless your outcome is `no_action`, which your Squad Operating Protocol states in full. For every other outcome (`action`, `failed`) a comment is mandatory. The user does NOT see your terminal output or run logs — only comments on the issue.\n\n")
+			b.WriteString("⚠️ **Final results MUST be delivered via `multica issue comment add`** — unless your outcome is `no_action`, which your Squad Operating Protocol states in full. For every other outcome (`action`, `failed`) a written result is mandatory unless this is a reaction-only acknowledgement under the policy below. The user does NOT see your terminal output or run logs — only issue comments and reactions.\n\n")
 		} else {
-			b.WriteString("⚠️ **Final results MUST be delivered via `multica issue comment add`.** The user does NOT see your terminal output or run logs — only comments on the issue.\n\n")
+			b.WriteString("⚠️ **Final results MUST be delivered via `multica issue comment add`.** Reaction-only acknowledgements follow the policy below. The user does NOT see your terminal output or run logs — only issue comments and reactions.\n\n")
 		}
-		b.WriteString("**Post exactly ONE comment per run — your final result, before this turn exits.** Do NOT post progress updates or plans along the way. Only a scheduled wakeup check whose `[WAKEUP]` block offers `multica issue wakeup checkin` may check in instead of commenting, when it found nothing that needs a reply.\n\n")
+		b.WriteString("**Post exactly ONE comment per run when delivering a written result — before this turn exits.** Do NOT post progress updates or plans along the way. Brief replies to follow-up human messages are allowed; the final-result rule does not forbid answering them. Only a scheduled wakeup check whose `[WAKEUP]` block offers `multica issue wakeup checkin` may check in instead of commenting, when it found nothing that needs a reply.\n\n")
+		writeCommentAcknowledgementPolicy(b)
 		b.WriteString("Keep comments concise and natural — state the outcome, not the process.\n\n")
 		b.WriteString("**Delivering files here:** pass `--attachment <path>` to `multica issue comment add` (repeatable) — the only way a screenshot or artifact reaches the reader.\n")
 		writeInlineBlocksPolicy(b)
 	}
 	b.WriteString("\n")
 	writeDeliveryInvariant(b)
+}
+
+// writeCommentAcknowledgementPolicy applies to issue turns and their additional input.
+func writeCommentAcknowledgementPolicy(b *strings.Builder) {
+	b.WriteString("**Comment acknowledgement policy** (new comment turns and human messages added during a run): after understanding a simple confirmation or receipt that needs no explanation, choose either a brief text reply or an OK/agreement reaction on that exact user comment. Use `multica issue comment reaction add <comment-id> --emoji \"👌\"`; repeated add is idempotent, so never use a toggle for retries. No duplicate text is needed after a reaction.\n\n")
+	b.WriteString("For a reaction-only turn with no other deliverable, the successful reaction is the user-visible response: finish with empty final output so the completion fallback does not create a redundant comment. During ongoing work, acknowledge the additional message and continue the original task; post its substantive final result when ready. Explicit questions, requirement changes needing explanation, failures and blockers need a written reply. Reactions never mean task completion or acceptance, and acknowledgement alone leaves issue status unchanged. Delivery/read receipts only record transport; they are not an agent response. Never infer understanding or add reactions automatically from successful delivery.\n\n")
 }
 
 // buildMetaSkillContentSlim is the post-MUL-3560 brief assembler.

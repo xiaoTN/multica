@@ -117,6 +117,13 @@ multica issue comment update <comment-id> --expected-revision 2 --content "Check
 multica issue runs MUL-123
 ```
 
+Add and remove are idempotent. Repeating `add` keeps the same reaction. In an agent run, the task token supplies the agent identity.
+
+```bash
+multica issue comment reaction add <comment-id> --emoji "👌"
+multica issue comment reaction remove <comment-id> --emoji "👌"
+```
+
 Read long descriptions or comments from stdin to avoid dealing with newlines and quoting:
 
 ```bash

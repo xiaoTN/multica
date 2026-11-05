@@ -57,11 +57,13 @@ export class TestApiClient {
 
   async loginLocal() {
     const response = await fetch(`${API_BASE}/auth/local`, { method: "POST" });
-    if (!response.ok) throw new Error(`local login failed: ${response.status}`);
+    if (!response.ok) throw new Error(`local session failed: ${response.status}`);
     const data = await response.json();
+    if (typeof data.token !== "string" || typeof data.user?.email !== "string") {
+      throw new Error("local session did not return a user and token");
+    }
     this.token = data.token;
     this.email = data.user.email;
-    return data;
   }
 
   async login(email: string, name: string) {

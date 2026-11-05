@@ -87,7 +87,7 @@ func waitTaskSupplement(ctx context.Context, wakeup <-chan struct{}, delay time.
 	}
 }
 
-func formatTaskSupplementInstruction(authorType, authorName, content string) string {
+func formatTaskSupplementInstruction(commentID, authorType, authorName, content string) string {
 	authorName = strings.Join(strings.Fields(authorName), " ")
 	if authorType == "agent" {
 		if authorName == "" {
@@ -111,12 +111,14 @@ Agent message:
 
 Treat this as additional guidance for the same active task, not as a replacement:
 - Preserve and complete the original objective.
-- Incorporate this guidance into the work and the turn's single final response.
-- Do not send a separate acknowledgement.
+- Incorporate this guidance into the work. Follow the comment acknowledgement policy in ## Output: a simple confirmation may receive a brief reply or an emoji reaction on the comment below.
+- Delivery/read status only records transport; choose a response after understanding the message. Keep the final written result for substantive work.
 - Replace or cancel the original objective only if the human explicitly asks for replacement or cancellation.
 
+Comment ID: %s (use this as --parent for a written response to this added message).
+
 Human message:
-%s`, strconv.Quote(authorName), content)
+%s`, strconv.Quote(authorName), commentID, content)
 }
 
 func taskSupplementEndpointUnsupported(err error) bool {
@@ -178,7 +180,7 @@ func (d *Daemon) runTaskSupplementLoop(ctx context.Context, session *agent.Sessi
 		// The adapter owns transport deadlines. Hook-based providers wait for a
 		// safe boundary, which can follow a long-running tool; run cancellation
 		// still aborts that wait and prevents late delivery.
-		injectErr := session.Supplement(ctx, formatTaskSupplementInstruction(supplement.AuthorType, supplement.AuthorName, supplement.Content))
+		injectErr := session.Supplement(ctx, formatTaskSupplementInstruction(supplement.CommentID, supplement.AuthorType, supplement.AuthorName, supplement.Content))
 		reason := taskSupplementFailureReason(ctx, injectErr)
 		if injectErr != nil {
 			// Raw provider/Go diagnostics remain local. Workspace-visible state is

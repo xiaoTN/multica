@@ -117,6 +117,13 @@ multica issue comment update <comment-id> --expected-revision 2 --content "Véri
 multica issue runs MUL-123
 ```
 
+L’ajout et le retrait sont idempotents. Répéter `add` conserve la même réaction. Dans une exécution d’agent, le jeton de l’exécution détermine son identité.
+
+```bash
+multica issue comment reaction add <comment-id> --emoji "👌"
+multica issue comment reaction remove <comment-id> --emoji "👌"
+```
+
 Lisez les descriptions ou commentaires longs depuis stdin pour ne pas avoir à gérer les retours à la ligne et les guillemets :
 
 ```bash

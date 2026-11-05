@@ -133,6 +133,8 @@
     "uploading": "{{filename}} をアップロード中"
   },
   "upload": {
+    "select_local": "ローカルのファイルやフォルダーを選択",
+    "pick_failed": "ファイルを選択できませんでした：{{reason}}",
     "directory": "{{filename}} を ZIP ファイルに圧縮してからアップロードしてください。",
     "failed": "{{filename}} をアップロードできませんでした: {{reason}}",
     "in_progress": "アップロード中…",

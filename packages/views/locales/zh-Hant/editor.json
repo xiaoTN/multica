@@ -140,6 +140,8 @@
     "uploading": "正在上傳 {{filename}}"
   },
   "upload": {
+    "select_local": "選擇本機檔案或資料夾",
+    "pick_failed": "無法選擇檔案：{{reason}}",
     "directory": "請先將 {{filename}} 壓縮為 ZIP 檔案後再上傳。",
     "failed": "{{filename}} 上傳失敗：{{reason}}",
     "in_progress": "上傳中…",

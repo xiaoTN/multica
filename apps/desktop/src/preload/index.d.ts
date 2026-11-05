@@ -85,6 +85,8 @@ interface DesktopAPI {
     reason?: "cancelled" | "no_window" | "error";
     error?: string;
   }>;
+  pickFilePaths: (multiple: boolean) => Promise<string[]>;
+  getPathForFile: (file: File) => string;
   /** Validate that a path is an existing readable+writable directory.
    *  Mirrors the daemon's runtime check so the user sees errors before submit. */
   validateLocalDirectory: (

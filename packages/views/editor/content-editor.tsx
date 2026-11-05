@@ -283,7 +283,7 @@ interface ContentEditorRef {
    *  `afterAccepted: "blur"` on surfaces where a send ends the turn, so the
    *  composer stops reading as "still writing". */
   blur: () => void;
-  uploadFile: (file: File) => void;
+  uploadFile: (file: File | string) => void;
   /** True when file uploads are still in progress. */
   hasActiveUploads: () => boolean;
   /**
@@ -958,7 +958,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
       blur: () => {
         editor?.commands.blur();
       },
-      uploadFile: (file: File) => {
+      uploadFile: (file: File | string) => {
         if (!editor || !onUploadFileRef.current) return;
         const endPos = editor.state.doc.content.size;
         uploadAndInsertFile(editor, file, onUploadFileRef.current, endPos);

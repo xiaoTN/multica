@@ -94,6 +94,17 @@ function errorMessage(err: unknown): string {
 export function setupLocalDirectory(
   windowGetter: () => BrowserWindow | null,
 ): void {
+  ipcMain.handle("local-files:pick", async (event, multiple?: boolean): Promise<string[]> => {
+    const win = BrowserWindow.fromWebContents(event.sender) ?? windowGetter();
+    if (!win) throw new Error("No window available");
+    const result = await dialog.showOpenDialog(win, {
+      // Windows/Linux native dialogs cannot select files and folders together;
+      // folder drag-and-drop still inserts paths on those platforms.
+      properties: ["openFile", ...(process.platform === "darwin" ? ["openDirectory" as const] : []),
+        ...(multiple === true ? ["multiSelections" as const] : [])],
+    });
+    return result.canceled ? [] : result.filePaths;
+  });
   ipcMain.handle(
     "local-directory:pick",
     async (event, defaultPath?: string): Promise<PickDirectoryResult> => {

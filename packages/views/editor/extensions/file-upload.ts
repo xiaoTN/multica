@@ -3,6 +3,7 @@ import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import type { UploadResult } from "@multica/core/hooks/use-file-upload";
 import { createSafeId } from "@multica/core/utils";
 import { filesFromDrop } from "../utils/drop-files";
+import { getLocalFilePath } from "../../platform/local-files";
 
 /**
  * Locate this upload's placeholder node, whichever shape it took.
@@ -201,10 +202,19 @@ function moveSelectionToParagraphAfterImage(editor: any, src: string) {
 export async function uploadAndInsertFile(
 
   editor: any,
-  file: File,
+  file: File | string,
   handler: (file: File, uploadId: string) => Promise<UploadResult | null>,
   pos?: number,
 ) {
+  const path = typeof file === "string" ? file : getLocalFilePath(file);
+  if (path) {
+    editor.chain().focus().insertContentAt(pos ?? editor.state.doc.content.size, {
+      type: "paragraph",
+      content: [{ type: "text", text: path, marks: [{ type: "code" }] }],
+    }).run();
+    return;
+  }
+  if (typeof file === "string") return;
   const isImage = file.type.startsWith("image/");
   // One id for both records. The handler adopts it as the draft's
   // `clientUploadId`, so a settle arriving at a different mount can still find
@@ -268,7 +278,7 @@ export async function uploadAndInsertFile(
 function dedupFiles(files: FileList | File[]): File[] {
   const seen = new Set<string>();
   return Array.from(files).filter((file) => {
-    const key = `${file.name}\0${file.size}\0${file.type}`;
+    const key = getLocalFilePath(file) || `${file.name}\0${file.size}\0${file.type}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

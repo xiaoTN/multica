@@ -29,6 +29,21 @@ function dropEvent() {
 }
 
 describe("useFileDropZone", () => {
+  it("forwards folders directly to the editor on desktop without ZIP guidance", () => {
+    toastError.mockClear();
+    Object.defineProperty(window, "desktopAPI", { configurable: true, value: { getPathForFile: vi.fn() } });
+    try {
+      const onDrop = vi.fn();
+      const { result } = renderHook(() => useFileDropZone({ onDrop }), { wrapper });
+      const event = dropEvent();
+      act(() => result.current.dropZoneProps.onDrop(event));
+      expect(onDrop).toHaveBeenCalledWith(Array.from(event.dataTransfer.files));
+      expect(toastError).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(window, "desktopAPI");
+    }
+  });
+
   it("explains how to upload a folder and still forwards ordinary files", () => {
     const onDrop = vi.fn();
     const { result } = renderHook(() => useFileDropZone({ onDrop }), { wrapper });

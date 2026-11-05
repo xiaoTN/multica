@@ -341,6 +341,42 @@ describe("one identity from node to draft", () => {
 });
 
 describe("file drop", () => {
+  it("inserts desktop file and folder paths without starting an upload", async () => {
+    const handler = vi.fn(async () => null);
+    const editor = makeEditor([createFileUploadExtension({ current: handler })]);
+    const paths = ["/data/家 照片/image[1].png", "/data/家 照片"];
+    const files = [new File([], "image[1].png", { type: "image/png" }), new File([], "家 照片")];
+    Object.defineProperty(window, "desktopAPI", { configurable: true, value: {
+      getPathForFile: (file: File) => paths[files.indexOf(file)],
+    } });
+    try {
+      vi.spyOn(editor.view, "posAtCoords").mockReturnValue(null);
+      const event = { dataTransfer: {
+        files, items: [{ kind: "file" }, { kind: "file", webkitGetAsEntry: () => ({ isDirectory: true }) }],
+      } } as unknown as DragEvent;
+      editor.view.someProp("handleDrop", (fn) => fn(editor.view, event, Slice.empty, false));
+      await Promise.resolve();
+
+      expect(editor.getText()).toContain(paths[0]);
+      expect(editor.getText()).toContain(paths[1]);
+      expect(editor.getMarkdown()).toContain("`/data/家 照片/image[1].png`");
+      expect(handler).not.toHaveBeenCalled();
+      expect(editor.getJSON().content?.some((node) => node.attrs?.uploading)).toBe(false);
+    } finally {
+      Reflect.deleteProperty(window, "desktopAPI");
+    }
+  });
+
+  it("inserts a native picker path as literal text", async () => {
+    const editor = makeEditor();
+    const handler = vi.fn();
+    const path = "/data/<photos> & [draft]/file`name.txt";
+    await uploadAndInsertFile(editor, path, handler);
+    expect(editor.getText()).toContain(path);
+    expect(editor.getHTML()).not.toContain("<photos>");
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it.each([false, true])("claims directory drops and uploads only the accompanying file (%s)", (withFile) => {
     const handler = vi.fn(async () => null);
     const warn = vi.fn();

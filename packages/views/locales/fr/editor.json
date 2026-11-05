@@ -144,6 +144,8 @@
     "uploading": "Envoi de {{filename}}"
   },
   "upload": {
+    "select_local": "Sélectionner des fichiers ou dossiers locaux",
+    "pick_failed": "Impossible de sélectionner les fichiers : {{reason}}",
     "directory": "Compressez {{filename}} en fichier ZIP avant de l’envoyer.",
     "failed": "Impossible d'envoyer {{filename}} : {{reason}}",
     "in_progress": "Envoi…",

@@ -1,8 +1,11 @@
+import { supportsLocalFilePaths } from "../../platform/local-files";
+
 /** Read entry metadata during the drop event, while the drag data is accessible. */
 export function filesFromDrop(
   dataTransfer: DataTransfer,
   onDirectory?: (name: string) => void,
 ): File[] {
+  if (supportsLocalFilePaths()) return Array.from(dataTransfer.files);
   const directoryIndexes = new Set<number>();
   const items = Array.from(dataTransfer.items ?? []).filter((item) => item.kind === "file");
   items.forEach((item, index) => {

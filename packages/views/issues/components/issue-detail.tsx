@@ -52,7 +52,7 @@ import {
 } from "./wakeup-activity";
 import { useWakeupText } from "./wakeup-presentation";
 import type { ImageSequenceBlock } from "@multica/core/attachments/image-sequence";
-import { FileUploadButton } from "@multica/ui/components/common/file-upload-button";
+import { FileUploadButton } from "../../editor/file-upload-button";
 import {
   Tooltip,
   TooltipTrigger,

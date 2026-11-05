@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@multica/ui/components/ui/dialog";
 import { Button } from "@multica/ui/components/ui/button";
-import { FileUploadButton } from "@multica/ui/components/common/file-upload-button";
+import { FileUploadButton } from "../editor/file-upload-button";
 import {
   ContentEditor,
   type ContentEditorRef,

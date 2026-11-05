@@ -14,6 +14,7 @@ const CHAT_VIRTUOSO_INITIAL_FIRST_ITEM_INDEX = 1_000_000;
 
 /** Message-only observers leave with the fading list; the composer stays alive. */
 export function ChatWindowMessages({
+  onReplyQuote,
   sessionId,
   pendingTask,
   pendingTaskLoading,
@@ -24,6 +25,7 @@ export function ChatWindowMessages({
   onReady,
   children,
 }: {
+  onReplyQuote?: (quote: string) => void;
   sessionId: string | null;
   pendingTask: ChatPendingTask | null | undefined;
   pendingTaskLoading: boolean;
@@ -75,6 +77,7 @@ export function ChatWindowMessages({
         <ChatMessageSkeleton />
       ) : showList ? (
         <ChatMessageList
+          onReplyQuote={onReplyQuote}
           key={sessionId}
           active={isPresent}
           revealKey={sessionId}

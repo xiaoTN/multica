@@ -1,6 +1,6 @@
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CommentSelectionBubble } from "./comment-selection-bubble";
+import { TextSelectionBubble } from "./text-selection-bubble";
 
 beforeEach(() => {
   Object.defineProperty(document.documentElement, "clientWidth", { configurable: true, value: 1024 });
@@ -23,9 +23,9 @@ function fixture(tops: number[], right = 1024) {
     return range;
   });
   const view = render(<>{ranges.map((range, i) =>
-    <CommentSelectionBubble key={i} range={range} source={source} owner="test" markerRanges={ranges}>
+    <TextSelectionBubble key={i} range={range} source={source} owner="test" markerRanges={ranges}>
       <button>{i + 1}</button>
-    </CommentSelectionBubble>,
+    </TextSelectionBubble>,
   )}</>);
   return { geometry, source, dispose: () => { view.unmount(); source.remove(); } };
 }
@@ -81,9 +81,9 @@ describe("annotation editor layout", () => {
     range.selectNodeContents(source);
     range.getBoundingClientRect = () => new DOMRect(420, 100, 100, 20);
     vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(320);
-    const view = render(<CommentSelectionBubble range={range} source={source} owner="test">
+    const view = render(<TextSelectionBubble range={range} source={source} owner="test">
       <textarea aria-label="Annotation note" />
-    </CommentSelectionBubble>);
+    </TextSelectionBubble>);
     try {
       const input = await screen.findByRole("textbox", { name: "Annotation note" });
       // Centering on the quote alone would put the editor at x=310, over

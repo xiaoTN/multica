@@ -300,6 +300,8 @@ interface ContentEditorRef {
    * losing the fragment.
    */
   insertMarkdownAtEnd: (markdown: string) => boolean;
+  /** Append a literal text quote and leave the caret in a paragraph after it. */
+  insertQuoteAtEnd: (quote: string) => boolean;
   /**
    * Draw a placeholder for an upload this document is not showing yet, and
    * report whether it landed.
@@ -973,6 +975,15 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
           contentType: "markdown",
         });
         return true;
+      },
+      insertQuoteAtEnd: (quote: string) => {
+        if (!editor || editor.isDestroyed) return false;
+        return editor.chain().insertContentAt(editor.state.doc.content.size, [
+          { type: "blockquote", content: [{
+            type: "paragraph", content: [{ type: "text", text: quote }],
+          }] },
+          { type: "paragraph" },
+        ]).focus("end").run();
       },
       flushPendingUpdate: () => {
         // No armed timer = nothing typed since the last emit. The editor is

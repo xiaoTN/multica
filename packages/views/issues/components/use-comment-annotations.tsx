@@ -10,7 +10,7 @@ import { useCommentDraftStore, type CommentDraftKey } from "@multica/core/issues
 import { MAX_ANNOTATION_QUOTE_LENGTH, MAX_REPLY_ANNOTATIONS, type ReplyAnnotation } from "@multica/core/drafts/reply-annotation";
 import { useT } from "../../i18n";
 import { annotationRange, captureCommentSelection, findAnnotationSource } from "./comment-annotation-selection";
-import { CommentSelectionBubble } from "./comment-selection-bubble";
+import { TextSelectionBubble } from "../../common/text-selection-bubble";
 
 type CapturedSelection = NonNullable<ReturnType<typeof captureCommentSelection>>;
 type SourceAnchor = { id: string; range: Range; root: HTMLElement };
@@ -255,15 +255,15 @@ export function useCommentAnnotations({ draftKey, sources, enabled, onAdded, edi
       {enabled && anchors.map((anchor) => {
         const index = annotations.findIndex((a) => a.id === anchor.id);
         if (index < 0) return null;
-        return <CommentSelectionBubble key={anchor.id} range={anchor.range} source={anchor.root} owner={draftKey}
+        return <TextSelectionBubble key={anchor.id} range={anchor.range} source={anchor.root} owner={draftKey}
           markerRanges={markerRanges.get(anchor.root)}>
           <IconButton variant="brandSubtle" size="icon-sm" className="size-6 rounded-full text-caption tabular-nums aria-expanded:ring-2 aria-expanded:ring-brand"
             aria-expanded={editingId === anchor.id}
             label={t(($) => $.reply.annotations.edit, { number: index + 1 })}
             onClick={() => editAnnotation(anchor.id)}>{index + 1}</IconButton>
-        </CommentSelectionBubble>;
+        </TextSelectionBubble>;
       })}
-      {enabled && selection && <CommentSelectionBubble range={selection.range} source={selection.root} owner={draftKey} onPositioned={focusNote}>
+      {enabled && selection && <TextSelectionBubble range={selection.range} source={selection.root} owner={draftKey} onPositioned={focusNote}>
         <div className="bubble-menu max-w-[calc(100vw-16px)] focus-within:outline-1 focus-within:outline-ring">
           {editing ? <div className="flex w-80 max-w-[calc(100vw-26px)] flex-col gap-1"><textarea ref={inputRef} value={editing.note} rows={Math.min(4, Math.max(1, editing.note.split("\n").length))}
             aria-label={t(($) => $.reply.annotations.note_label)}
@@ -302,7 +302,7 @@ export function useCommentAnnotations({ draftKey, sources, enabled, onAdded, edi
             ? t(($) => $.reply.annotations.quote_limit, { count: MAX_ANNOTATION_QUOTE_LENGTH })
             : t(($) => $.reply.annotations.count_limit, { count: MAX_REPLY_ANNOTATIONS })}
         </p>}
-      </CommentSelectionBubble>}
+      </TextSelectionBubble>}
     </>,
   };
 }

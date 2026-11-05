@@ -5,6 +5,7 @@ import {
   isPlainShortcut,
   shortcutMatchesEvent,
   type ShortcutChord,
+  type ShortcutActionId,
 } from "@multica/core/shortcuts";
 import { isImeComposing } from "@multica/core/utils";
 
@@ -51,7 +52,8 @@ export function shouldReplayNativeEnter(
  * get first refusal, while submit still runs before the base editor keymap.
  */
 export function createSubmitShortcutExtension(
-  onSubmit: () => boolean,
+  onSubmit: (actionId: ShortcutActionId) => boolean,
+  getActions: () => readonly ShortcutActionId[] = () => ["send"],
 ) {
   return Extension.create({
     name: "submitShortcut",
@@ -67,10 +69,10 @@ export function createSubmitShortcutExtension(
           props: {
             handleKeyDown(view, event) {
               if (replayingEnter) return false;
-              const shortcut = getShortcut("send");
+              const actions = getActions();
 
               if (
-                shouldReplayNativeEnter(event, shortcut, view.composing)
+                actions.some((action) => shouldReplayNativeEnter(event, getShortcut(action), view.composing))
               ) {
                 replayingEnter = true;
                 try {
@@ -80,15 +82,13 @@ export function createSubmitShortcutExtension(
                 }
               }
 
-              if (
-                !shouldHandleSubmitShortcut(event, {
-                  configuredShortcut: shortcut,
+              const action = actions.find((action) =>
+                shouldHandleSubmitShortcut(event, {
+                  configuredShortcut: getShortcut(action),
                   composing: view.composing,
-                })
-              ) {
-                return false;
-              }
-              return onSubmit();
+                }),
+              );
+              return action ? onSubmit(action) : false;
             },
           },
         }),

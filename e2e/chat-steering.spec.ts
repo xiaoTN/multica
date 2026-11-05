@@ -32,14 +32,14 @@ test("Enter adds chat input to the exact running turn", async ({ page }, testInf
     await page.addInitScript(token => {
       localStorage.setItem("multica_token", token!);
       localStorage.setItem("multica:chat:isOpen", "false");
-      localStorage.setItem("multica_comment_composer", JSON.stringify({ state: { sticky: true, runningAgentReply: "steer" }, version: 0 }));
-      localStorage.setItem("multica_keyboard_shortcuts", JSON.stringify({ state: { overrides: { send: { key: "Enter", modifiers: { primary: false, control: false, meta: false, shift: false, alt: false } } } }, version: 2 }));
+      localStorage.setItem("multica_comment_composer", JSON.stringify({ state: { sticky: true, runningAgentReply: "after_run" }, version: 0 }));
     }, api.getToken());
     await page.setViewportSize({width: 1440, height: 1000});
     await page.goto(`/${workspace.slug}/chat?session=${sessionId}`, { waitUntil: "domcontentloaded" });
     const editor = page.locator('.ProseMirror[contenteditable="true"]').last();
     await expect(editor).toBeVisible({timeout: 45_000});
     await editor.fill("Enter steering browser evidence");
+    await expect(page.getByRole("button", {name:"Queue message",exact:true})).toBeEnabled();
     await page.screenshot({ path: testInfo.outputPath("chat-steer-compose.png") });
     const posted = page.waitForResponse(response => response.request().method()==="POST" && response.url().endsWith(`/sessions/${sessionId}/messages`), { timeout: 15_000 });
     await editor.press("Enter");
@@ -56,14 +56,36 @@ test("Enter adds chat input to the exact running turn", async ({ page }, testInf
     await expect(page.getByText("Received by the current run", {exact: true})).toBeVisible({timeout: 30_000});
     await page.screenshot({path:testInfo.outputPath("chat-steer-receipt.png")});
     await page.getByRole("combobox", {name: "When replying to a running agent"}).click();
-    await page.getByRole("option", {name: "Start after this run"}).click();
+    await page.getByRole("option", {name: "Add to current run"}).click();
     await editor.fill("Explicit queue browser evidence");
+    await expect(page.getByRole("button", {name:"Add to current run",exact:true})).toBeEnabled();
     const queuedResponse = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith(`/sessions/${sessionId}/messages`));
-    await page.getByRole("button", {name: "Queue message", exact: true}).click();
+    await editor.press("ControlOrMeta+Enter");
     const queued = await queuedResponse;
     expect(queued.request().postDataJSON()).toMatchObject({mode: "queue", expected_task_id: runId});
     expect(await queued.json()).toMatchObject({steered: false, queued: true});
     expect((await database.query(`SELECT id FROM agent_task_queue WHERE chat_session_id=$1`,[sessionId])).rows).toHaveLength(2);
+
+    await page.goto(`/${workspace.slug}/settings?tab=shortcuts`);
+    const recorder = page.getByRole("button", {name: "Change shortcut for Queue message"});
+    await expect(recorder).toBeVisible();
+    await page.screenshot({path:testInfo.outputPath("chat-shortcuts-defaults.png")});
+    await recorder.click();
+    await recorder.press("ControlOrMeta+Shift+Enter");
+    await expect(recorder.locator('[data-shortcut-key="shift"]')).toBeVisible();
+    await page.reload();
+    await expect(recorder.locator('[data-shortcut-key="shift"]')).toBeVisible();
+    await page.screenshot({path:testInfo.outputPath("chat-shortcuts-custom.png")});
+    await page.goto(`/${workspace.slug}/chat?session=${sessionId}`);
+    await expect(editor).toBeVisible();
+    await editor.fill("Custom queue shortcut browser evidence");
+    await expect(page.getByRole("button", {name:"Queue message",exact:true})).toBeEnabled();
+    const customResponse = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith(`/sessions/${sessionId}/messages`));
+    await editor.press("ControlOrMeta+Shift+Enter");
+    const custom = await customResponse;
+    expect(custom.request().postDataJSON()).toMatchObject({mode:"queue",expected_task_id:runId});
+    expect(await custom.json()).toMatchObject({steered:false,queued:true});
+    expect((await database.query(`SELECT id FROM agent_task_queue WHERE chat_session_id=$1`,[sessionId])).rows).toHaveLength(3);
     await testInfo.attach("delivery-identifiers", {body: JSON.stringify({message_id:sent.message_id,task_id:runId,request:response.request().postDataJSON()},null,2),contentType:"application/json"});
   } finally {
     if (sessionId) await database.query(`DELETE FROM chat_task_supplement WHERE chat_session_id=$1`,[sessionId]);

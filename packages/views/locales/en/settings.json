@@ -230,7 +230,8 @@
     "send_enter_hint": "Shift+Enter inserts a paragraph, continues a list, or adds a code-block newline.",
     "categories": {
       "general": "General",
-      "navigation": "Navigation"
+      "navigation": "Navigation",
+      "chat": "Chat"
     },
     "actions": {
       "openSearch": {
@@ -320,6 +321,14 @@
       "goSettings": {
         "label": "Go to Settings",
         "description": "Open workspace settings."
+      },
+      "chatSteer": {
+        "label": "Send or interject",
+        "description": "Add to the current run. Send normally when no run is active."
+      },
+      "chatQueue": {
+        "label": "Queue message",
+        "description": "Start after the current run. Send normally when no run is active."
       }
     },
     "fixed": {

@@ -228,7 +228,8 @@
     "send_enter_hint": "Shift+Enterで段落の挿入、リストの継続、コードブロック内の改行ができます。",
     "categories": {
       "general": "一般",
-      "navigation": "ナビゲーション"
+      "navigation": "ナビゲーション",
+      "chat": "チャット"
     },
     "actions": {
       "openSearch": {
@@ -318,6 +319,14 @@
       "goSettings": {
         "label": "設定へ移動",
         "description": "ワークスペース設定を開きます。"
+      },
+      "chatSteer": {
+        "label": "送信・実行に追加",
+        "description": "現在の実行に追加します。実行中でなければ通常どおり送信します。"
+      },
+      "chatQueue": {
+        "label": "送信を予約",
+        "description": "現在の実行の終了後に開始します。実行中でなければ通常どおり送信します。"
       }
     },
     "fixed": {

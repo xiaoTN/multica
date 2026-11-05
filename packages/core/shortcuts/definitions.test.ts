@@ -65,14 +65,17 @@ describe("keyboard shortcut definitions", () => {
     }
   });
 
-  it("ships at most one action per default binding", () => {
-    const seen: { id: string; shortcut: ReturnType<typeof createShortcutChord> }[] = [];
+  it("ships at most one action per default binding in overlapping scopes", () => {
+    const seen: { id: string; scope?: string; shortcut: ReturnType<typeof createShortcutChord> }[] = [];
     for (const action of SHORTCUT_ACTIONS) {
       const shortcut = action.defaultShortcut;
       if (!shortcut) continue;
-      const clash = seen.find((other) => shortcutChordEquals(other.shortcut, shortcut));
+      const clash = seen.find((other) =>
+        (!action.editorScope || !other.scope || action.editorScope === other.scope) &&
+        shortcutChordEquals(other.shortcut, shortcut),
+      );
       expect(clash?.id, `${action.id} duplicates ${clash?.id}`).toBeUndefined();
-      seen.push({ id: action.id, shortcut });
+      seen.push({ id: action.id, scope: action.editorScope, shortcut });
     }
   });
 

@@ -228,7 +228,8 @@
     "send_enter_hint": "Shift+Enter 可插入段落、繼續列表，或在程式碼塊中換行。",
     "categories": {
       "general": "常規",
-      "navigation": "導航"
+      "navigation": "導航",
+      "chat": "聊天"
     },
     "actions": {
       "openSearch": {
@@ -318,6 +319,14 @@
       "goSettings": {
         "label": "前往設定",
         "description": "開啟工作區設定。"
+      },
+      "chatSteer": {
+        "label": "傳送或插話",
+        "description": "補充到目前執行；沒有執行時正常傳送。"
+      },
+      "chatQueue": {
+        "label": "排隊傳送",
+        "description": "目前執行結束後開始；沒有執行時正常傳送。"
       }
     },
     "fixed": {

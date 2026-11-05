@@ -49,6 +49,7 @@ import { issueIdentifierOptions } from "@multica/core/issues/queries";
 import { workspaceListOptions } from "@multica/core/workspace/queries";
 import { isIssueIdentifier } from "@multica/ui/markdown";
 import type { Attachment } from "@multica/core/types";
+import type { ShortcutActionId } from "@multica/core/shortcuts";
 import {
   parseMarkdownChunked,
   MARKDOWN_CHUNK_THRESHOLD,
@@ -136,7 +137,8 @@ interface ContentEditorBaseProps {
   placeholder?: string;
   className?: string;
   debounceMs?: number;
-  onSubmit?: () => void;
+  onSubmit?: (actionId?: ShortcutActionId) => void;
+  submitActions?: readonly ShortcutActionId[];
   onBlur?: () => void;
   /**
    * Upload transport. `uploadId` is minted by the editor when it inserts the
@@ -372,6 +374,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
       className,
       debounceMs = 300,
       onSubmit,
+      submitActions,
       onBlur,
       onUploadFile,
       pasteAsFileThreshold,
@@ -400,6 +403,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     const pendingBaseRef = useRef<string | null>(null);
     const onUpdateRef = useRef(onUpdate);
     const onSubmitRef = useRef(onSubmit);
+    const submitActionsRef = useRef(submitActions);
     const onBlurRef = useRef(onBlur);
     const onReadyRef = useRef(onReady);
     const onUploadingChangeRef = useRef(onUploadingChange);
@@ -513,6 +517,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     // Keep refs in sync without recreating editor
     onUpdateRef.current = onUpdate;
     onSubmitRef.current = onSubmit;
+    submitActionsRef.current = submitActions;
     onBlurRef.current = onBlur;
     onReadyRef.current = onReady;
     onUploadingChangeRef.current = onUploadingChange;
@@ -615,6 +620,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
         placeholder: () => placeholderRef.current,
         queryClient,
         onSubmitRef,
+        submitActionsRef,
         onUploadFileRef,
         onDirectoryDropRef,
         pasteAsFileThresholdRef,

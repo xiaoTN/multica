@@ -15,6 +15,24 @@ afterEach(() => {
 });
 
 describe("shortcut store", () => {
+  it("defaults chat to Enter for steering and Mod+Enter for queuing", () => {
+    expect(getShortcut("chatSteer")).toEqual(createShortcutChord("Enter"));
+    expect(getShortcut("chatQueue")).toEqual(createShortcutChord("Enter", { primary: true }));
+    expect(findShortcutConflict("chatQueue", getShortcut("chatQueue")!)).toBeNull();
+    expect(findShortcutConflict("chatSteer", getShortcut("chatQueue")!)).toBe("chatQueue");
+    expect(findShortcutConflict("chatQueue", createShortcutChord("K", { primary: true }))).toBe("openSearch");
+  });
+
+  it("restores customized and disabled chat shortcuts from persisted state", () => {
+    const custom = createShortcutChord("Enter", { primary: true, shift: true });
+    const stored = { overrides: { chatSteer: custom, chatQueue: null } };
+    useShortcutStore.setState(migrateShortcutState(stored, 2));
+    expect(getShortcut("chatSteer")).toEqual(custom);
+    expect(getShortcut("chatQueue")).toBeNull();
+    useShortcutStore.getState().resetAll();
+    expect(getShortcut("chatSteer")).toEqual(createShortcutChord("Enter"));
+  });
+
   it("uses defaults, persists overrides, and can disable an action", () => {
     expect(getShortcut("openSearch")).toEqual(
       createShortcutChord("K", { primary: true }),

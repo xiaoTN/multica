@@ -14,6 +14,8 @@ export type ShortcutActionId =
   | "findInIssue"
   | "archiveInboxItem"
   | "send"
+  | "chatSteer"
+  | "chatQueue"
   | "goBack"
   | "goForward"
   | "goInbox"
@@ -29,7 +31,7 @@ export type ShortcutActionId =
   | "goSkills"
   | "goSettings";
 
-export type ShortcutCategory = "general" | "navigation";
+export type ShortcutCategory = "general" | "chat" | "navigation";
 
 export interface ShortcutModifiers {
   /** Command on macOS, Control on Windows/Linux. */
@@ -54,6 +56,8 @@ export interface ShortcutActionDefinition {
   defaultShortcut: ShortcutChord | null;
   /** Whether the global handler may run while focus is inside an editor/control. */
   allowInEditable: boolean;
+  /** Mutually exclusive editor handlers may reuse a chord. */
+  editorScope?: "form" | "chat";
 }
 
 export function createShortcutChord(
@@ -100,7 +104,9 @@ export const SHORTCUT_ACTIONS: readonly ShortcutActionDefinition[] = [
     defaultShortcut: createShortcutChord("E"),
     allowInEditable: false,
   },
-  { id: "send", category: "general", defaultShortcut: primary("Enter"), allowInEditable: true },
+  { id: "send", category: "general", defaultShortcut: primary("Enter"), allowInEditable: true, editorScope: "form" },
+  { id: "chatSteer", category: "chat", defaultShortcut: createShortcutChord("Enter"), allowInEditable: true, editorScope: "chat" },
+  { id: "chatQueue", category: "chat", defaultShortcut: primary("Enter"), allowInEditable: true, editorScope: "chat" },
   // Browser-style history navigation (Mod+[ / Mod+]). Neither bracket is
   // app-owned (PRIMARY_RESERVED_KEYS) nor browser-owned
   // (BROWSER_ONLY_PRIMARY_RESERVED_KEYS), so both are recordable on every
@@ -388,6 +394,9 @@ export function isShortcutAllowedForAction(
         shortcut,
         createShortcutChord("Enter", { primary: true }),
       );
+  }
+  if (actionId === "chatSteer" || actionId === "chatQueue") {
+    return isPlainShortcut(shortcut, "Enter") || hasCommand;
   }
   if (SHORTCUT_ACTION_BY_ID[actionId].allowInEditable) {
     return hasCommand;

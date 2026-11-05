@@ -19,7 +19,9 @@ export function useChatSend(sessionId: string | null) {
   const sendMessage = useCallback(async (
     targetSessionId: string, content: string, attachmentIds: string[] | undefined,
     pendingTaskId: string | null,
+    modeOverride?: RunningAgentReply,
   ) => {
+    const mode = modeOverride ?? sendMode;
     let targetTaskId = pendingTaskId;
     try {
       // An empty cache during hydration does not prove the conversation is idle.
@@ -29,15 +31,15 @@ export function useChatSend(sessionId: string | null) {
       }
       const result = targetTaskId
         ? await api.sendChatMessage(targetSessionId, content, attachmentIds, {
-            mode: sendMode === "steer" ? "steer" : "queue", expectedTaskId: targetTaskId,
+            mode: mode === "steer" ? "steer" : "queue", expectedTaskId: targetTaskId,
           })
         : await api.sendChatMessage(targetSessionId, content, attachmentIds);
-      if (targetTaskId && sendMode === "steer" && !result.steered) {
+      if (targetTaskId && mode === "steer" && !result.steered) {
         toast.info(t(($) => $.input.steer_queued));
       }
       return result;
     } catch (err) {
-      if (targetTaskId && sendMode === "steer" && err instanceof ApiError && err.status === 409) {
+      if (targetTaskId && mode === "steer" && err instanceof ApiError && err.status === 409) {
         toast.error(t(($) => $.input.steer_unavailable));
         return null;
       }

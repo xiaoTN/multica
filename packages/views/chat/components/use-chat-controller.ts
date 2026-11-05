@@ -42,6 +42,7 @@ import {
 } from "@multica/core/chat/pending";
 import { useChatDraftRestore } from "./use-chat-draft-restore";
 import { useChatSend } from "./use-chat-send";
+import type { RunningAgentReply } from "@multica/core/issues/stores/comment-composer-store";
 import { useChatTaskActions } from "./use-chat-task-actions";
 import { useChatProjectContextSupport } from "./use-chat-project-context-support";
 import { createLogger } from "@multica/core/logger";
@@ -498,6 +499,7 @@ export function useChatController(opts?: { isActive?: boolean }) {
       attachmentIds?: string[],
       commitInput?: (options?: { extraDraftKeys?: string[]; clearEditor?: boolean }) => void,
       draftAttachments: Attachment[] = [],
+      modeOverride?: RunningAgentReply,
     ): Promise<boolean> => {
       if (!activeAgent) {
         apiLogger.warn("sendChatMessage skipped: no active agent");
@@ -578,7 +580,7 @@ export function useChatController(opts?: { isActive?: boolean }) {
       // the draft for retry (ChatInput never cleared it).
       let result;
       try {
-        result = await sendMessage(sessionId, finalContent, attachmentIds, pendingTaskId);
+        result = await sendMessage(sessionId, finalContent, attachmentIds, pendingTaskId, modeOverride);
         if (!result) return false;
       } catch (err) {
         apiLogger.error("sendChatMessage.error", { sessionId, err });

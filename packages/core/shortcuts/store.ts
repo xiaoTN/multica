@@ -170,9 +170,11 @@ export function findShortcutConflict(
   actionId: ShortcutActionId,
   shortcut: ShortcutChord,
 ): ShortcutActionId | null {
+  const scope = SHORTCUT_ACTION_BY_ID[actionId].editorScope;
   for (const action of SHORTCUT_ACTIONS) {
     if (
       action.id !== actionId &&
+      (!scope || !action.editorScope || scope === action.editorScope) &&
       shortcutChordEquals(getShortcut(action.id), shortcut)
     ) {
       return action.id;

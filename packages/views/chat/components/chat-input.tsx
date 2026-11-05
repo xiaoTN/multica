@@ -26,7 +26,7 @@ import { CHAT_COLUMN, CHAT_GUTTER } from "./chat-column";
 import { useChatStore, DRAFT_NEW_SESSION } from "@multica/core/chat";
 import { attachmentToDraftUpload, type DraftUpload } from "@multica/core/drafts";
 import { createLogger } from "@multica/core/logger";
-import { useShortcut } from "@multica/core/shortcuts";
+import { useShortcut, type ShortcutActionId } from "@multica/core/shortcuts";
 import { ShortcutKeycaps } from "../../common/shortcut-keycaps";
 import type { MentionItem } from "../../editor/extensions/mention-suggestion";
 import type { Attachment, Project } from "@multica/core/types";
@@ -38,6 +38,7 @@ const logger = createLogger("chat.ui");
 const EMPTY_UPLOADS: DraftUpload[] = [];
 /** Editor identity for the chat composer — see the editorKey note below. */
 const CHAT_COMPOSER_EDITOR_KEY = "chat-composer";
+const CHAT_SUBMIT_ACTIONS = ["chatSteer", "chatQueue"] as const;
 
 function attachmentReferenceUrls(attachment: Attachment): string[] {
   const withUploadFields = attachment as Attachment & {
@@ -71,6 +72,7 @@ interface ChatInputProps {
     attachmentIds: string[] | undefined,
     commitInput: (options?: { extraDraftKeys?: string[]; clearEditor?: boolean }) => void,
     draftAttachments: Attachment[],
+    modeOverride?: RunningAgentReply,
   ) => void | boolean | Promise<void | boolean>;
   restoreDraftRequest?: {
     id: string;
@@ -193,7 +195,10 @@ export function ChatInput({
   const queueLabel = tSettings(($) => $.preferences.running_agent_reply.after_run);
   const runningSendLabel = sendMode === "steer" ? steerLabel : t(($) => $.input.queue_send_tooltip);
   const { t: tEditor } = useT("editor");
-  const sendShortcut = useShortcut("send");
+  const steerShortcut = useShortcut("chatSteer");
+  const queueShortcut = useShortcut("chatQueue");
+  const sendShortcut = isRunning && sendMode === "after_run" ? queueShortcut : steerShortcut;
+  const requestedModeRef = useRef<RunningAgentReply | undefined>(undefined);
   const editorRef = useRef<ContentEditorRef>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const activeSessionId = useChatStore((s) => s.activeSessionId);
@@ -481,6 +486,7 @@ export function ChatInput({
     // `editorScrubbedRef`.
     afterAccepted: () => (editorScrubbedRef.current ? "refocus" : "none"),
     onSubmit: async (content: string): Promise<boolean> => {
+      const modeOverride = requestedModeRef.current;
       editorScrubbedRef.current = false;
       // These states disable the SubmitButton, but Mod+Enter bypasses it — so a
       // read-only or busy composer must still refuse the keyboard path.
@@ -571,6 +577,7 @@ export function ChatInput({
         uniqueActiveIds.length > 0 ? uniqueActiveIds : undefined,
         commitInput,
         draftAttachments.filter((attachment) => uniqueActiveIds.includes(attachment.id)),
+        modeOverride,
       );
       // Owner rejected the send (or threw, which useComposerSubmit also treats
       // as a rejection): the draft was never committed, so it stays put for
@@ -750,7 +757,17 @@ export function ChatInput({
               // upload's own completion dispatch.
               commitDraft(editorDraftKeyRef.current, md);
             }}
-            onSubmit={submit}
+            onSubmit={(actionId?: ShortcutActionId) => {
+              // The submit gate calls onSubmit synchronously, capturing this
+              // intent before any session lookup or network request can yield.
+              requestedModeRef.current = actionId === "chatQueue" ? "after_run" : "steer";
+              try {
+                void submit();
+              } finally {
+                requestedModeRef.current = undefined;
+              }
+            }}
+            submitActions={CHAT_SUBMIT_ACTIONS}
             onUploadFile={uploadEnabled ? handleUpload : undefined}
             pasteAsFileThreshold={PASTE_AS_FILE_THRESHOLD}
             onUploadingChange={uploadGate.onUploadingChange}
@@ -820,16 +837,14 @@ export function ChatInput({
               : disabled || noAgent
                 ? placeholder
                 : undefined}
-            tooltip={isRunning
-              ? runningSendLabel
-              : sendShortcut
+            tooltip={sendShortcut
                 ? (
                   <>
-                    {t(($) => $.input.send_tooltip)}
+                    {isRunning ? runningSendLabel : t(($) => $.input.send_tooltip)}
                     <ShortcutKeycaps shortcut={sendShortcut} decorative />
                   </>
                 )
-                : t(($) => $.input.send_tooltip)}
+                : isRunning ? runningSendLabel : t(($) => $.input.send_tooltip)}
             ariaLabel={gate.uploading
               ? tEditor(($) => $.upload.in_progress)
               : isRunning

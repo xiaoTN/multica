@@ -63,7 +63,7 @@ import { useT } from "../../i18n";
 // ─── Public component ────────────────────────────────────────────────────
 
 interface ChatMessageListProps {
-  onReplyQuote?: (quote: string) => void;
+  onReplyAnnotation?: (quote: string, note: string) => void;
   /** Pause bottom-stick effects while a closing floating window fades out. */
   active?: boolean;
   /**
@@ -188,7 +188,7 @@ const LIST_COMPONENTS: Components<ChatRenderItem, ChatListContext> = {
 };
 
 export function ChatMessageList({
-  onReplyQuote,
+  onReplyAnnotation,
   active = true,
   revealKey = null,
   onRevealed,
@@ -205,7 +205,7 @@ export function ChatMessageList({
   onRegenerateQuickActions,
   quickActionsPendingMessageId = null,
 }: ChatMessageListProps) {
-  const { containerRef, captureProps, popup } = useChatReplySelection(active ? onReplyQuote : undefined);
+  const { containerRef, captureProps, popup } = useChatReplySelection(active ? onReplyAnnotation : undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollContainerEl, setScrollContainerEl] = useState<HTMLDivElement | null>(null);
   const setScrollContainerRef = useCallback((node: HTMLDivElement | null) => {

@@ -201,7 +201,7 @@ export function BuilderConversation({
         <ChatMessageSkeleton />
       ) : messages.length > 0 || pending ? (
         <ChatMessageList
-          onReplyQuote={(quote) => inputRef.current?.addReplyQuote(quote)}
+          onReplyAnnotation={(quote, note) => inputRef.current?.addReplyAnnotation(quote, note)}
           messages={messages}
           pendingTask={pendingTask}
           availability={runtimeOnline ? "online" : "offline"}

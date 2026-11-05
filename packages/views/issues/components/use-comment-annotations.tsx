@@ -10,6 +10,7 @@ import { useCommentDraftStore, type CommentDraftKey } from "@multica/core/issues
 import { MAX_ANNOTATION_QUOTE_LENGTH, MAX_REPLY_ANNOTATIONS, type ReplyAnnotation } from "@multica/core/drafts/reply-annotation";
 import { useT } from "../../i18n";
 import { annotationRange, captureCommentSelection, findAnnotationSource } from "./comment-annotation-selection";
+import { ReplyAnnotationNoteEditor } from "../../common/reply-annotation-note-editor";
 import { TextSelectionBubble } from "../../common/text-selection-bubble";
 
 type CapturedSelection = NonNullable<ReturnType<typeof captureCommentSelection>>;
@@ -265,34 +266,19 @@ export function useCommentAnnotations({ draftKey, sources, enabled, onAdded, edi
       })}
       {enabled && selection && <TextSelectionBubble range={selection.range} source={selection.root} owner={draftKey} onPositioned={focusNote}>
         <div className="bubble-menu max-w-[calc(100vw-16px)] focus-within:outline-1 focus-within:outline-ring">
-          {editing ? <div className="flex w-80 max-w-[calc(100vw-26px)] flex-col gap-1"><textarea ref={inputRef} value={editing.note} rows={Math.min(4, Math.max(1, editing.note.split("\n").length))}
-            aria-label={t(($) => $.reply.annotations.note_label)}
-            placeholder={t(($) => $.reply.annotations.note_placeholder)}
-            className="min-h-8 max-h-[calc(4lh+0.75rem)] w-full min-w-0 resize-none field-sizing-content rounded-sm bg-transparent px-2 py-1.5 text-body outline-none placeholder:text-muted-foreground"
-            onChange={(event) => {
-              setEditor({ annotation: { ...editing, note: event.target.value }, existing: editingExisting });
+          {editing ? <ReplyAnnotationNoteEditor inputRef={inputRef} note={editing.note} confirmLabel={confirmLabel}
+            onChange={(note) => {
+              setEditor({ annotation: { ...editing, note }, existing: editingExisting });
               setError(false);
             }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !isImeComposing(event) &&
-                !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
-                event.preventDefault(); event.stopPropagation(); confirmNote();
-              } else if (event.key === "Escape" && !isImeComposing(event)) {
-                event.preventDefault(); event.stopPropagation(); close(true);
-              }
-            }} />
-            <div className="flex items-center justify-end gap-1 px-1 pb-1">
+            onConfirm={confirmNote} onCancel={() => close(true)}>
               {editingExisting && <IconButton variant="ghost" size="icon-sm" className="mr-auto text-muted-foreground hover:text-destructive"
                 label={t(($) => $.reply.annotations.remove, { number: annotations.findIndex((a) => a.id === editing.id) + 1 })}
                 onClick={() => {
                   useCommentDraftStore.getState().removeAnnotation(draftKey, editing.id);
                   close(true);
                 }}><Trash2 /></IconButton>}
-              <Button size="sm" disabled={!editing.note.trim()}
-                aria-label={confirmLabel} aria-keyshortcuts="Enter"
-                onClick={confirmNote}>{confirmLabel}</Button>
-            </div>
-            </div> : <Button ref={actionRef} variant="ghost" size="sm"
+          </ReplyAnnotationNoteEditor> : <Button ref={actionRef} variant="ghost" size="sm"
               onMouseDown={(event) => event.preventDefault()} onClick={() => add(selection)}>
               <MessageSquarePlus />{t(($) => editable ? $.reply.annotations.add_comment : $.reply.annotations.add)}
             </Button>}

@@ -324,7 +324,7 @@ export function ChatPage() {
         <ChatMessageSkeleton />
       ) : c.hasMessages ? (
         <ChatMessageList
-          onReplyQuote={(quote) => inputRef.current?.addReplyQuote(quote)}
+          onReplyAnnotation={(quote, note) => inputRef.current?.addReplyAnnotation(quote, note)}
           key={c.activeSessionId}
           messages={c.messages}
           pendingTask={c.pendingTask}

@@ -55,7 +55,7 @@ describe("chat reply composer with real Tiptap", () => {
     await waitFor(() => expect(live.editor).not.toBeNull());
     act(() => {
       live.editor!.commands.insertContent("Unsaved draft");
-      ref.current!.addReplyQuote("First **literal** line\nSecond line");
+      ref.current!.addReplyAnnotation("First **literal** line\nSecond line", "First **opinion**\nwith details");
     });
     expect(onSend).not.toHaveBeenCalled();
     expect(useChatStore.getState().inputDrafts["session-a"]).toContain("Unsaved draft");
@@ -64,7 +64,7 @@ describe("chat reply composer with real Tiptap", () => {
     expect(live.editor!.state.selection.$from.depth).toBe(1);
     act(() => {
       live.editor!.commands.insertContent("First reply");
-      ref.current!.addReplyQuote("Another quote");
+      ref.current!.addReplyAnnotation("Another quote", "Second note");
       live.editor!.commands.insertContent("Final reply");
     });
     expect(document.querySelectorAll("blockquote")).toHaveLength(2);
@@ -75,6 +75,8 @@ describe("chat reply composer with real Tiptap", () => {
     expect(sent).toContain("Unsaved draft");
     expect(sent).toContain("> First");
     expect(sent).toContain("> Second line");
+    expect(sent).toContain("First **opinion**");
+    expect(sent).toContain("Second note");
     expect(sent).toContain("First reply");
     expect(sent).toContain("Final reply");
   });
@@ -82,7 +84,7 @@ describe("chat reply composer with real Tiptap", () => {
   it("ignores additions to a disabled composer", async () => {
     const { ref } = fixture(true);
     await waitFor(() => expect(live.editor).not.toBeNull());
-    act(() => ref.current!.addReplyQuote("Do not insert"));
+    act(() => ref.current!.addReplyAnnotation("Do not insert", "Note"));
     expect(document.querySelector("blockquote")).toBeNull();
     expect(useChatStore.getState().inputDrafts).toEqual({});
   });

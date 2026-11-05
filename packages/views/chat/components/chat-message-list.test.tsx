@@ -964,8 +964,11 @@ describe("ChatMessageList onboarding starter cards", () => {
 
 describe("ChatMessageList reply selections", () => {
   function fixture() {
+    Object.defineProperty(document.documentElement, "clientWidth", { configurable: true, value: 1024 });
+    Object.defineProperty(document.documentElement, "clientHeight", { configurable: true, value: 768 });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(new DOMRect(10, 10, 600, 400));
     Object.defineProperty(Range.prototype, "getBoundingClientRect", { configurable: true, value: () => new DOMRect(20, 20, 100, 20) });
-    const onReplyQuote = vi.fn();
+    const onReplyAnnotation = vi.fn();
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const view = render(
       <I18nProvider locale="en" resources={TEST_RESOURCES}>
@@ -973,11 +976,11 @@ describe("ChatMessageList reply selections", () => {
           <ChatMessageList messages={[
             { id: "source", chat_session_id: "session", task_id: null, created_at: "2026-11-05T00:00:00Z", role: "assistant", content: "First **bold line**\n\nSecond `code` line" },
             { id: "user", chat_session_id: "session", task_id: null, created_at: "2026-11-05T00:00:00Z", role: "user", content: "User draft" },
-          ]} pendingTask={null} availability={undefined} onReplyQuote={onReplyQuote} />
+          ]} pendingTask={null} availability={undefined} onReplyAnnotation={onReplyAnnotation} />
         </QueryClientProvider>
       </I18nProvider>,
     );
-    return { ...view, onReplyQuote };
+    return { ...view, onReplyAnnotation };
   }
 
   function select(first: Node, last = first) {
@@ -988,23 +991,51 @@ describe("ChatMessageList reply selections", () => {
     fireEvent.pointerUp(last.parentElement!);
   }
 
-  it("quotes visible multiline Markdown from either role without consuming native selection", () => {
-    const { container, onReplyQuote } = fixture();
-    onReplyQuote.mockImplementation(() => expect(window.getSelection()!.isCollapsed).toBe(true));
+  it("edits notes beside visible multiline selections before confirming consecutive annotations", async () => {
+    const { container, onReplyAnnotation } = fixture();
+    onReplyAnnotation.mockImplementation(() => expect(window.getSelection()!.isCollapsed).toBe(true));
     const first = container.querySelector('strong')!.firstChild!;
     const last = container.querySelector('code')!.nextSibling!;
     select(first, last);
     expect(window.getSelection()!.toString()).toContain("bold line");
     fireEvent.click(screen.getByText("Add to reply"));
-    expect(onReplyQuote).toHaveBeenLastCalledWith("bold line\n\nSecond code line");
+    expect(onReplyAnnotation).not.toHaveBeenCalled();
+    const note = (await screen.findByRole("textbox", { name: "Comment" }));
+    expect(screen.getByRole("button", { name: "Add annotation" })).toBeDisabled();
+    fireEvent.change(note, { target: { value: "First note\nwith details" } });
+    fireEvent(document, new Event("selectionchange"));
+    expect(note).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add annotation" }));
+    expect(onReplyAnnotation).toHaveBeenLastCalledWith("bold line\n\nSecond code line", "First note\nwith details");
     const user = container.querySelector('[data-chat-reply-content="user"] p')!.firstChild!;
     select(user);
     fireEvent.click(screen.getByText("Add to reply"));
-    expect(onReplyQuote).toHaveBeenLastCalledWith("User draft");
+    fireEvent.change((await screen.findByRole("textbox", { name: "Comment" })), { target: { value: "Second note" } });
+    fireEvent.keyDown((await screen.findByRole("textbox", { name: "Comment" })), { key: "Enter" });
+    expect(onReplyAnnotation).toHaveBeenLastCalledWith("User draft", "Second note");
+  });
+
+  it("cancels an unconfirmed note with Escape or outside press and keeps IME Enter in the editor", async () => {
+    const { container, onReplyAnnotation } = fixture();
+    const first = container.querySelector('strong')!.firstChild!;
+    select(first);
+    fireEvent.click(screen.getByText("Add to reply"));
+    const input = (await screen.findByRole("textbox", { name: "Comment" }));
+    fireEvent.change(input, { target: { value: "Unconfirmed" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    expect(onReplyAnnotation).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+    select(first);
+    fireEvent.click(screen.getByText("Add to reply"));
+    expect((await screen.findByRole("textbox", { name: "Comment" }))).toHaveValue("");
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+    expect(onReplyAnnotation).not.toHaveBeenCalled();
   });
 
   it("dismisses on Escape, collapsed selection, and outside press; rejects cross-message selections", () => {
-    const { container, onReplyQuote } = fixture();
+    const { container, onReplyAnnotation } = fixture();
     const first = container.querySelector('strong')!.firstChild!;
     const user = container.querySelector('[data-chat-reply-content="user"] p')!.firstChild!;
     const button = () => screen.queryByText("Add to reply");
@@ -1014,6 +1045,6 @@ describe("ChatMessageList reply selections", () => {
     fireEvent(document, new Event("selectionchange")); expect(button()).toBeNull();
     select(first); fireEvent.pointerDown(document.body); expect(button()).toBeNull();
     select(first, user); expect(button()).toBeNull();
-    expect(onReplyQuote).not.toHaveBeenCalled();
+    expect(onReplyAnnotation).not.toHaveBeenCalled();
   });
 });

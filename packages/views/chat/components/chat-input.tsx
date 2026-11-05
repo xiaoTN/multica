@@ -57,7 +57,7 @@ function isAttachmentReferenced(content: string, attachment: Attachment): boolea
 }
 
 export interface ChatInputRef {
-  addReplyQuote: (quote: string) => void;
+  addReplyAnnotation: (quote: string, note: string) => void;
 }
 
 interface ChatInputProps {
@@ -280,10 +280,10 @@ export function ChatInput({
     [setInputDraft, setInputDraftAttachments],
   );
   useImperativeHandle(ref, () => ({
-    addReplyQuote: (quote) => {
-      if (disabled || noAgent || !quote.trim() || editorDraftKeyRef.current !== draftKey) return;
+    addReplyAnnotation: (quote, note) => {
+      if (disabled || noAgent || !quote.trim() || !note.trim() || editorDraftKeyRef.current !== draftKey) return;
       const editor = editorRef.current;
-      if (!editor?.insertQuoteAtEnd(quote)) return;
+      if (!editor?.insertReplyAnnotationAtEnd(quote, note)) return;
       const markdown = editor.flushPendingUpdate() ?? editor.getMarkdown();
       commitDraft(draftKey, markdown);
       setIsEmpty(false);

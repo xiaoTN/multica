@@ -891,7 +891,7 @@ export function ChatWindow() {
       <AnimatePresence initial={false}>
         {isOpen && (
           <ChatWindowMessages
-            onReplyQuote={(quote) => inputRef.current?.addReplyQuote(quote)}
+            onReplyAnnotation={(quote, note) => inputRef.current?.addReplyAnnotation(quote, note)}
             sessionId={activeSessionId}
             pendingTask={pendingTask}
             pendingTaskLoading={pendingTaskLoading}

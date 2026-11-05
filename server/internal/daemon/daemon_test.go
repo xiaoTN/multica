@@ -6908,7 +6908,8 @@ func TestBuildPromptSquadLeaderMultiThreadCarvesOutNoAction(t *testing.T) {
 	// ("DISTINCT body file per thread"). The assertion shape is unchanged:
 	// every obligation must sit AFTER the no_action scope sentence.
 	for _, obligation := range []string{
-		"multiple replies are required and correct",
+		"when several threads need text",
+		"simple human confirmation may instead receive a reaction on its exact comment ID",
 		"OLDEST thread first",
 		"DISTINCT body file per thread",
 	} {

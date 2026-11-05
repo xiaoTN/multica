@@ -175,3 +175,36 @@ func TestCompleteTaskAfterFailedOrCancelledPublishesNothing(t *testing.T) {
 		})
 	}
 }
+
+func TestCompleteTaskReactionOnlyAndSubstantiveDelivery(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		output       string
+		wantComments int
+	}{
+		{"reaction only", "", 0},
+		{"substantive result still delivered", "Implemented and verified the requested change.", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := newDeliveryFixture(t)
+			comment := d.f.Comment(t, util.UUIDToString(d.source), "Received, local delivery only")
+			task := d.runningTask(t, testutil.Cols{"trigger_comment_id": comment})
+			d.f.Insert(t, "comment_reaction", testutil.Cols{
+				"comment_id": comment, "workspace_id": d.f.WorkspaceID,
+				"actor_type": "agent", "actor_id": d.agentID, "emoji": "👌",
+			})
+			if !d.complete(t, task, tc.output) {
+				t.Fatal("completion did not transition")
+			}
+			if got := d.agentComments(t, d.source); got != tc.wantComments {
+				t.Fatalf("comments = %d, want %d", got, tc.wantComments)
+			}
+			if d.complete(t, task, tc.output) {
+				t.Fatal("completion replay transitioned again")
+			}
+			if got := d.agentComments(t, d.source); got != tc.wantComments {
+				t.Fatalf("completion retry changed comments: %d", got)
+			}
+		})
+	}
+}

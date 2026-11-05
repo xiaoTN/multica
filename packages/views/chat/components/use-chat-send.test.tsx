@@ -4,6 +4,8 @@ import { api, ApiError } from "@multica/core/api";
 import { useCommentComposerStore } from "@multica/core/issues/stores/comment-composer-store";
 import { useChatSend } from "./use-chat-send";
 
+const queries = vi.hoisted(() => ({ fetchQuery: vi.fn() }));
+vi.mock("@tanstack/react-query", async (original) => ({ ...(await original<typeof import("@tanstack/react-query")>()), useQueryClient: () => queries }));
 const toast = vi.hoisted(() => ({ error: vi.fn(), info: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
 vi.mock("../../i18n", () => ({ useT: () => ({ t: () => "delivery notice" }) }));
@@ -14,11 +16,18 @@ vi.mock("@multica/core/api", async (original) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  queries.fetchQuery.mockResolvedValue(null);
   useCommentComposerStore.setState({ runningAgentReply: "steer" });
   vi.mocked(api.sendChatMessage).mockResolvedValue({ message_id: "message", task_id: "run", created_at: "now", steered: true });
 });
 
 describe("chat send routing", () => {
+  it("finds the running turn before sending while the initial cache is empty", async () => {
+    queries.fetchQuery.mockResolvedValue({ task_id: "server-running-turn", status: "running", supports_queue: true });
+    const { result } = renderHook(() => useChatSend("chat"));
+    await result.current.sendMessage("chat", "early Enter", undefined, null);
+    expect(api.sendChatMessage).toHaveBeenCalledWith("chat", "early Enter", undefined, { mode: "steer", expectedTaskId: "server-running-turn" });
+  });
   it("reads the preference when reopened and sends normally without a run", async () => {
     const first = renderHook(() => useChatSend("chat"));
     act(() => useCommentComposerStore.getState().setRunningAgentReply("after_run"));

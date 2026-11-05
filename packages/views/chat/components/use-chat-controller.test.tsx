@@ -54,6 +54,7 @@ const h = vi.hoisted(() => {
     }),
   };
   const queryClient = {
+    fetchQuery: vi.fn(async () => null),
     getQueryData: vi.fn(),
     setQueryData: vi.fn(),
     invalidateQueries: vi.fn(),

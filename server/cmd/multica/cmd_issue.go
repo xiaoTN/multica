@@ -2856,7 +2856,7 @@ func runIssueRuns(cmd *cobra.Command, args []string) error {
 	// On a single-issue read that column would repeat the argument on every
 	// line, so it stays off there.
 	if siblings {
-		headers := []string{"RUN", "ISSUE", "AGENT", "STATUS", "STARTED"}
+		headers := []string{"RUN", "ISSUE", "AGENT", "STATUS", "STARTED", "WAIT"}
 		rows := make([][]string, 0, len(runs))
 		for _, r := range runs {
 			started := strVal(r, "started_at")
@@ -2869,13 +2869,14 @@ func runIssueRuns(cmd *cobra.Command, args []string) error {
 				actors.agent(strVal(r, "agent_id")),
 				strVal(r, "status"),
 				started,
+				runWaitSummary(r),
 			})
 		}
 		cli.PrintTable(os.Stdout, headers, rows)
 		return nil
 	}
 
-	headers := []string{"ID", "AGENT", "STATUS", "STARTED", "COMPLETED", "ERROR"}
+	headers := []string{"ID", "AGENT", "STATUS", "STARTED", "COMPLETED", "ERROR", "WAIT"}
 	rows := make([][]string, 0, len(runs))
 	for _, r := range runs {
 		started := strVal(r, "started_at")
@@ -2898,10 +2899,23 @@ func runIssueRuns(cmd *cobra.Command, args []string) error {
 			started,
 			completed,
 			errMsg,
+			runWaitSummary(r),
 		})
 	}
 	cli.PrintTable(os.Stdout, headers, rows)
 	return nil
+}
+
+func runWaitSummary(run map[string]any) string {
+	diagnostic, ok := run["wait_diagnostic"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	message := strVal(diagnostic, "message")
+	if occupied, ok := diagnostic["occupied"]; ok {
+		message += fmt.Sprintf(" (%v/%v)", occupied, diagnostic["limit"])
+	}
+	return message
 }
 
 func runIssueUsage(cmd *cobra.Command, args []string) error {

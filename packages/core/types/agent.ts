@@ -309,6 +309,8 @@ export interface TaskCancellationActor {
 }
 
 export interface AgentTask {
+  wait_diagnostic?: RunWaitDiagnostic;
+  wait_history?: RunWaitHistoryEntry[];
   wakeup_id?: string;
   id: string;
   agent_id: string;
@@ -461,6 +463,24 @@ export interface AgentTask {
    * reporting was not free, we just don't know what it cost.
    */
   usage?: TaskUsage[];
+}
+
+export interface RunWaitDiagnostic {
+  code: string;
+  phase: string;
+  scope: string;
+  occupied?: number;
+  limit?: number;
+  blocking_task_id?: string;
+  since?: string;
+  evaluated_at?: string;
+  message?: string;
+}
+
+export interface RunWaitHistoryEntry {
+  at: string;
+  status: string;
+  diagnostic: RunWaitDiagnostic | null;
 }
 
 /**

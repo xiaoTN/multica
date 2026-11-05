@@ -1683,18 +1683,20 @@ export function useRealtimeSync(
       invalidatePendingAggregate();
     });
 
-    // task:dispatch fires when the daemon claims the queued task. The daemon
-    // immediately follows with StartTask, so dispatched→running is sub-second.
-    // We collapse that window by writing "running" directly — the pill jumps
-    // from "Queued" straight to "Thinking", skipping a meaningless "Starting"
-    // frame. Stage decision in TaskStatusPill maps "running" + empty
-    // taskMessages → "Thinking · Ns".
+    const unsubTaskWaitChanged = ws.on("task:wait_changed", (p) => {
+      const payload = p as TaskDispatchPayload;
+      if (payload.chat_session_id) {
+        qc.invalidateQueries({ queryKey: chatKeys.pendingTask(payload.chat_session_id) });
+      }
+    });
+
+    // Dispatch confirms server admission; execution begins only on task:running.
     const unsubTaskDispatch = ws.on("task:dispatch", (p) => {
       const payload = p as TaskDispatchPayload;
       if (!payload.chat_session_id) return;
       qc.setQueryData<ChatPendingTask>(
         chatKeys.pendingTask(payload.chat_session_id),
-        (old) => promotePendingChatTask(old, payload.task_id, "running"),
+        (old) => promotePendingChatTask(old, payload.task_id, "dispatched"),
       );
       invalidateChatMessageQueries(qc, payload.chat_session_id);
       qc.invalidateQueries({ queryKey: chatKeys.pendingTask(payload.chat_session_id) });
@@ -1900,6 +1902,7 @@ export function useRealtimeSync(
       unsubChatCancelFinalized();
       unsubTaskQueued();
       unsubTaskDispatch();
+      unsubTaskWaitChanged();
       unsubTaskRunning();
       unsubTaskWaitingLocalDir();
       unsubTaskCancelled();

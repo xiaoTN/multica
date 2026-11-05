@@ -3,7 +3,7 @@
     "label": "{{name}} の実行",
     "stop": "停止",
     "stopping": "停止中...",
-    "queued": "利用可能なエージェントを待っています。",
+    "queued": "待機理由は未報告です",
     "starting": "エージェントのセッションを準備しています。",
     "waiting_directory": "別の実行が作業ディレクトリを解放するのを待っています。",
     "thinking": "思考中",
@@ -1783,5 +1783,52 @@
       "empty_title": "保存したビューはまだありません",
       "empty_description": "タスク一覧でフィルターと表示方法を調整し、ビューとして保存します。"
     }
+  },
+  "run_wait": {
+    "details": "待機の詳細",
+    "phase": "段階",
+    "scope": "適用範囲",
+    "capacity": "使用数 / 上限",
+    "duration": "待機時間",
+    "evaluated": "評価日時",
+    "unreported": "未報告",
+    "blocker": "ブロックしている実行",
+    "reason_code": "理由コード",
+    "history": "最近の待機状態の変化",
+    "cleared": "待機が解除されました",
+    "codes": {
+      "agent_concurrency": "エージェントの同時実行数が上限に達しました",
+      "runtime_concurrency": "ランタイムの同時実行数が上限に達しました",
+      "daemon_capacity": "デーモンの実行枠がすべて使用中です",
+      "previous_run": "前の実行の終了を待機中",
+      "runtime_offline": "ランタイムがオフラインかハートビートが期限切れです",
+      "runtime_unbound": "ランタイムが未設定です",
+      "runtime_rebound": "ランタイムの変更後の処理を待機中",
+      "wakeup_inactive": "無効になった起動ルールの処理を待機中",
+      "awaiting_claim": "サーバーで待機中。待機理由は未報告です",
+      "awaiting_daemon": "割り当て済み。デーモンの受領確認を待機中",
+      "preparing_session": "受領済み。エージェントセッションを準備中",
+      "local_directory_busy": "ローカルディレクトリの解放を待機中",
+      "worktree_snapshot_busy": "ワークツリーのスナップショット用にディレクトリの解放を待機中",
+      "unknown": "待機理由は未報告です",
+      "daemon_updating": "デーモンの更新準備中。受領を一時停止しています"
+    },
+    "scopes": {
+      "agent": "エージェント",
+      "runtime": "ランタイム",
+      "daemon": "このマシンのデーモン",
+      "issue_agent": "このタスクのエージェント",
+      "chat_session": "チャットセッション",
+      "quick_create_agent": "エージェントのクイック作成",
+      "local_directory": "ローカルディレクトリ",
+      "run": "実行"
+    },
+    "phases": {
+      "queued": "サーバーのキュー",
+      "dispatched": "デーモンの受領確認待ち",
+      "resource_wait": "リソース待ち",
+      "preparing": "セッション準備中"
+    },
+    "seconds": "{{count}} s"
   }
 }

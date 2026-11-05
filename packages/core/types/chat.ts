@@ -295,6 +295,7 @@ export interface PrioritizeQueuedChatTaskResponse {
 }
 
 export interface ChatPendingTask {
+  wait_diagnostic?: import("./agent").RunWaitDiagnostic;
   task_id?: string;
   status?: string;
   created_at?: string;

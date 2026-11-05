@@ -144,6 +144,9 @@
     "uploading": "Uploading {{filename}}"
   },
   "upload": {
+    "select_local": "Select local files or folders",
+    "pick_failed": "Couldn’t select files: {{reason}}",
+    "directory": "Compress {{filename}} into a ZIP file before uploading it.",
     "failed": "Couldn't upload {{filename}}: {{reason}}",
     "in_progress": "Uploading…",
     "interrupted": "Upload interrupted — the file wasn’t saved. Attach it again.",

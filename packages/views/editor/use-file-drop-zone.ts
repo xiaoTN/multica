@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef, type DragEvent } from "react";
+import { filesFromDrop } from "./utils/drop-files";
+import { useDirectoryDropWarning } from "./use-directory-drop-warning";
 
 interface UseFileDropZoneOptions {
   onDrop: (files: File[]) => void;
@@ -9,6 +11,7 @@ function useFileDropZone({ onDrop, enabled = true }: UseFileDropZoneOptions) {
   const [isDragOver, setIsDragOver] = useState(false);
   const onDropRef = useRef(onDrop);
   onDropRef.current = onDrop;
+  const warnDirectory = useDirectoryDropWarning();
 
   // Clear on any document-level drop or dragend (e.g. user drops outside the zone)
   useEffect(() => {
@@ -48,12 +51,12 @@ function useFileDropZone({ onDrop, enabled = true }: UseFileDropZoneOptions) {
       e.preventDefault();
       setIsDragOver(false);
       if (alreadyHandled || !enabled) return;
-      const files = e.dataTransfer?.files;
-      if (files?.length) {
-        onDropRef.current(Array.from(files));
+      if (e.dataTransfer?.files.length) {
+        const files = filesFromDrop(e.dataTransfer, warnDirectory);
+        if (files.length) onDropRef.current(files);
       }
     },
-    [enabled],
+    [enabled, warnDirectory],
   );
 
   const dropZoneProps = {

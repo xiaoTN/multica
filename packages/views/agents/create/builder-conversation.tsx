@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { Loader2, MessageSquare, X } from "@multica/ui/icons";
 import {
   applyDraftModelChange,
@@ -18,7 +18,7 @@ import type {
 import { Button } from "@multica/ui/components/ui/button";
 import { IconButton } from "@multica/ui/components/common/icon-button";
 import { cn } from "@multica/ui/lib/utils";
-import { ChatInput } from "../../chat/components/chat-input";
+import { ChatInput, type ChatInputRef } from "../../chat/components/chat-input";
 import { CHAT_COLUMN, CHAT_GUTTER } from "../../chat/components/chat-column";
 import {
   ChatMessageList,
@@ -162,6 +162,7 @@ export function BuilderConversation({
   error: string | null;
   onDismissError?: () => void;
 }) {
+  const inputRef = useRef<ChatInputRef>(null);
   const { t } = useT("agents");
   const { t: tModals } = useT("modals");
   const pending = !!pendingTask?.task_id;
@@ -200,6 +201,7 @@ export function BuilderConversation({
         <ChatMessageSkeleton />
       ) : messages.length > 0 || pending ? (
         <ChatMessageList
+          onReplyAnnotation={(quote, note) => inputRef.current?.addReplyAnnotation(quote, note)}
           messages={messages}
           pendingTask={pendingTask}
           availability={runtimeOnline ? "online" : "offline"}
@@ -260,6 +262,7 @@ export function BuilderConversation({
       ) : null}
 
       <ChatInput
+        ref={inputRef}
         onSend={(content, _attachmentIds, commitInput) =>
           onSend(content, commitInput)
         }

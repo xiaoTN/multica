@@ -88,7 +88,7 @@ import {
   type DuplicateIssueErrorBody,
   parseWithFallback,
 } from "@multica/core/api";
-import { FileUploadButton } from "@multica/ui/components/common/file-upload-button";
+import { FileUploadButton } from "../editor/file-upload-button";
 import { BorderBeam } from "@multica/ui/components/common/border-beam";
 import { ClearablePillButton, PillButton } from "../common/pill-button";
 import { ActorAvatar } from "../common/actor-avatar";

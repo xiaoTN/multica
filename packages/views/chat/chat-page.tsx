@@ -23,7 +23,7 @@ import { ListColumn } from "../layout/list-column";
 import { useNavigation } from "../navigation";
 import { useT } from "../i18n";
 import { ChatMessageList, ChatMessageSkeleton } from "./components/chat-message-list";
-import { ChatInput } from "./components/chat-input";
+import { ChatInput, type ChatInputRef } from "./components/chat-input";
 import { ChatQueue } from "./components/chat-queue";
 import { ChatThreadList } from "./components/chat-thread-list";
 import { ChatSessionHeader } from "./components/chat-session-header";
@@ -57,6 +57,7 @@ import { useRegisterCommandBarContext } from "../search/register-context";
  * style).
  */
 export function ChatPage() {
+  const inputRef = useRef<ChatInputRef>(null);
   const { t } = useT("chat");
   const { pathname, searchParams, push, replace } = useNavigation();
   const workspaceSlug = useRequiredWorkspaceSlug();
@@ -323,6 +324,7 @@ export function ChatPage() {
         <ChatMessageSkeleton />
       ) : c.hasMessages ? (
         <ChatMessageList
+          onReplyAnnotation={(quote, note) => inputRef.current?.addReplyAnnotation(quote, note)}
           key={c.activeSessionId}
           messages={c.messages}
           pendingTask={c.pendingTask}
@@ -385,6 +387,7 @@ export function ChatPage() {
       />
 
       <ChatInput
+        ref={inputRef}
         onSend={c.handleSend}
         restoreDraftRequest={c.restoreDraftRequest}
         conversationStarterRequest={c.conversationStarterRequest}

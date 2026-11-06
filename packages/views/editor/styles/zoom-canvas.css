@@ -16,6 +16,8 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
+  /* Keep edge scrolling and horizontal history gestures inside the viewer. */
+  overscroll-behavior: none;
   cursor: grab;
   /* Claim every touch gesture: browser pan/pinch would otherwise scroll or
      zoom the page underneath instead of moving the content. */

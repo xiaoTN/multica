@@ -38,9 +38,11 @@ import {
   panBy,
   resizeTransform,
   wheelZoomFactor,
+  wheelPanDelta,
   zoomByAtCenter,
   zoomToAt,
   type Point,
+  type PanBounds,
   type Size,
   type ZoomTransform,
 } from "../utils/zoom-transform";
@@ -55,6 +57,9 @@ interface UseZoomCanvasOptions {
    * and drag / wheel still pan horizontally.
    */
   horizontalArrowPan?: boolean;
+  /** Images scroll normally; diagrams retain their wheel-to-zoom behavior. */
+  wheelBehavior?: "zoom" | "pan";
+  panBounds?: PanBounds;
 }
 
 export interface ZoomCanvasApi {
@@ -100,6 +105,8 @@ function nearlyEqual(a: number, b: number): boolean {
 export function useZoomCanvas({
   content,
   horizontalArrowPan = true,
+  wheelBehavior = "zoom",
+  panBounds = "visible",
 }: UseZoomCanvasOptions): ZoomCanvasApi {
   const [viewportNode, setViewportNode] = useState<HTMLDivElement | null>(null);
   const [viewport, setViewport] = useState<Size>(EMPTY_SIZE);
@@ -188,9 +195,9 @@ export function useZoomCanvas({
     previousViewportRef.current = viewport;
     if (!ready) return;
     setTransform((current) =>
-      resizeTransform(current, contentSize, previous, viewport),
+      resizeTransform(current, contentSize, previous, viewport, panBounds),
     );
-  }, [ready, contentSize, viewport]);
+  }, [ready, contentSize, viewport, panBounds]);
 
   const fit = useCallback(() => {
     const { contentSize: c, viewport: v, ready: r } = stateRef.current;
@@ -203,31 +210,40 @@ export function useZoomCanvas({
     const { contentSize: c, viewport: v, ready: r } = stateRef.current;
     if (!r) return;
     setIsAnimated(true);
-    setTransform(clampTransform(centerTransform(c, v, 1), c, v));
-  }, []);
+    setTransform(clampTransform(centerTransform(c, v, 1), c, v, panBounds));
+  }, [panBounds]);
 
   const zoomBy = useCallback((factor: number) => {
     const { transform: t, contentSize: c, viewport: v, ready: r } = stateRef.current;
     if (!r) return;
     setIsAnimated(true);
-    setTransform(zoomByAtCenter(t, factor, c, v));
-  }, []);
+    setTransform(zoomByAtCenter(t, factor, c, v, panBounds));
+  }, [panBounds]);
 
   const zoomIn = useCallback(() => zoomBy(ZOOM_STEP), [zoomBy]);
   const zoomOut = useCallback(() => zoomBy(1 / ZOOM_STEP), [zoomBy]);
 
   // Wheel must be a native non-passive listener: React routes `onWheel` through
   // a passive root listener, where preventDefault is ignored and the page would
-  // scroll behind the dialog instead of the diagram zooming.
+  // scroll behind the dialog instead of the canvas handling the gesture.
   useEffect(() => {
     const element = viewportNode;
     if (!element) return;
 
     const onWheel = (event: WheelEvent) => {
-      const { transform: t, contentSize: c, viewport: v, ready: r } = stateRef.current;
-      if (!r) return;
+      const { contentSize: c, viewport: v, ready: r } = stateRef.current;
       event.preventDefault();
+      event.stopPropagation();
+      if (!r) return;
       setIsAnimated(false);
+
+      // Chromium reports trackpad pinch as Ctrl+wheel. Keep it, and explicit
+      // Ctrl/Command+wheel zoom, separate from ordinary two-axis scrolling.
+      if (wheelBehavior === "pan" && !event.ctrlKey && !event.metaKey) {
+        const delta = wheelPanDelta(event.deltaX, event.deltaY, event.deltaMode, v);
+        setTransform((current) => panBy(current, delta.x, delta.y, c, v, panBounds));
+        return;
+      }
 
       const rect = element.getBoundingClientRect();
       const anchor: Point = {
@@ -235,12 +251,14 @@ export function useZoomCanvas({
         y: event.clientY - rect.top,
       };
       const factor = wheelZoomFactor(event.deltaY, event.deltaMode);
-      setTransform(zoomToAt(t, t.scale * factor, anchor, c, v));
+      setTransform((current) =>
+        zoomToAt(current, current.scale * factor, anchor, c, v, panBounds),
+      );
     };
 
     element.addEventListener("wheel", onWheel, { passive: false });
     return () => element.removeEventListener("wheel", onWheel);
-  }, [viewportNode]);
+  }, [viewportNode, wheelBehavior, panBounds]);
 
   const localPoint = useCallback(
     (event: { clientX: number; clientY: number }): Point => {
@@ -301,7 +319,7 @@ export function useZoomCanvas({
         const nextScale =
           pinchOrigin.scale * (distanceBetween(first, second) / pinchOrigin.distance);
         setTransform((current) =>
-          zoomToAt(current, nextScale, midpointOf(first, second), c, v),
+          zoomToAt(current, nextScale, midpointOf(first, second), c, v, panBounds),
         );
         return;
       }
@@ -317,10 +335,11 @@ export function useZoomCanvas({
           },
           c,
           v,
+          panBounds,
         ),
       );
     },
-    [localPoint],
+    [localPoint, panBounds],
   );
 
   const handlePointerUp = useCallback((event: ReactPointerEvent<HTMLElement>) => {
@@ -382,13 +401,13 @@ export function useZoomCanvas({
             event.key === "ArrowLeft" ? step : event.key === "ArrowRight" ? -step : 0;
           const deltaY =
             event.key === "ArrowUp" ? step : event.key === "ArrowDown" ? -step : 0;
-          setTransform((current) => panBy(current, deltaX, deltaY, c, v));
+          setTransform((current) => panBy(current, deltaX, deltaY, c, v, panBounds));
           return;
         }
         default:
       }
     },
-    [zoomIn, zoomOut, fit, horizontalArrowPan],
+    [zoomIn, zoomOut, fit, horizontalArrowPan, panBounds],
   );
 
   // Double-click toggles fit <-> 100%, anchored under the cursor on the way in.
@@ -407,9 +426,9 @@ export function useZoomCanvas({
       }
       // Already fitted. Go to 100% — or to 200% when fit already is 100%, so a
       // small image still has somewhere to go instead of ignoring the gesture.
-      setTransform(zoomToAt(t, fitScale < 0.999 ? 1 : 2, localPoint(event), c, v));
+      setTransform(zoomToAt(t, fitScale < 0.999 ? 1 : 2, localPoint(event), c, v, panBounds));
     },
-    [localPoint],
+    [localPoint, panBounds],
   );
 
   return {

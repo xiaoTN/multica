@@ -117,6 +117,7 @@ export function promotePendingChatTask(
     return {
       ...current,
       status,
+      wait_diagnostic: current.status === status ? current.wait_diagnostic : undefined,
       wait_reason: resolveWaitReason(status, waitReason, current.wait_reason),
       queued_tasks: queue.filter((task) => task.task_id !== taskID),
     };

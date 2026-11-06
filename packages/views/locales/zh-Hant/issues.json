@@ -3,7 +3,7 @@
     "label": "{{name}} 的執行",
     "stop": "停止",
     "stopping": "正在停止...",
-    "queued": "等待可用的 AI 代理。",
+    "queued": "等待原因尚未回報",
     "starting": "正在準備 AI 代理會話。",
     "waiting_directory": "等待其他執行釋放工作目錄。",
     "thinking": "思考中",
@@ -1780,5 +1780,52 @@
       "empty_title": "還沒有儲存的檢視",
       "empty_description": "在任務列表裡調好篩選和顯示方式，然後另存為檢視。"
     }
+  },
+  "run_wait": {
+    "details": "等待詳情",
+    "phase": "階段",
+    "scope": "範圍",
+    "capacity": "占用 / 上限",
+    "duration": "已等待",
+    "evaluated": "評估時間",
+    "unreported": "尚未回報",
+    "blocker": "阻塞執行",
+    "reason_code": "原因代碼",
+    "history": "最近等待變化",
+    "cleared": "等待已解除",
+    "codes": {
+      "agent_concurrency": "此 AI 代理並行數已滿",
+      "runtime_concurrency": "執行階段並行數已滿",
+      "daemon_capacity": "守護程序執行槽已滿",
+      "previous_run": "等待上一筆執行結束",
+      "runtime_offline": "執行階段離線或心跳已過期",
+      "runtime_unbound": "尚未綁定執行階段",
+      "runtime_rebound": "執行階段綁定已變更，等待排程處理",
+      "wakeup_inactive": "喚醒規則已失效，等待排程處理",
+      "awaiting_claim": "伺服器排隊中，阻塞原因尚未回報",
+      "awaiting_daemon": "已分派，等待守護程序確認領取",
+      "preparing_session": "已領取，正在準備 AI 代理工作階段",
+      "local_directory_busy": "等待本機目錄釋放",
+      "worktree_snapshot_busy": "等待目錄釋放以準備工作樹快照",
+      "unknown": "等待原因尚未回報",
+      "daemon_updating": "守護程序正在準備更新，暫停領取"
+    },
+    "scopes": {
+      "agent": "AI 代理",
+      "runtime": "執行階段",
+      "daemon": "本機守護程序",
+      "issue_agent": "此任務內的 AI 代理",
+      "chat_session": "聊天工作階段",
+      "quick_create_agent": "AI 代理快速建立",
+      "local_directory": "本機目錄",
+      "run": "執行"
+    },
+    "phases": {
+      "queued": "伺服器排隊",
+      "dispatched": "等待守護程序確認領取",
+      "resource_wait": "等待資源",
+      "preparing": "正在準備工作階段"
+    },
+    "seconds": "{{count}} s"
   }
 }

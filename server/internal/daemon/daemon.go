@@ -5371,6 +5371,7 @@ func (d *Daemon) pollLoop(ctx context.Context, taskWakeups <-chan taskWakeup) er
 // handleTask so an in-flight task is not killed just because the poll loop is
 // stopping mid-flight.
 func (d *Daemon) runBatchPoller(pollerCtx, parentCtx context.Context, sem chan int, wakeup chan struct{}, taskWG *sync.WaitGroup) {
+	capacityReported := false
 	releaseSlots := func(slots []int) {
 		for _, sl := range slots {
 			sem <- sl
@@ -5404,17 +5405,25 @@ func (d *Daemon) runBatchPoller(pollerCtx, parentCtx context.Context, sem chan i
 			if woke {
 				continue
 			}
+			_ = d.client.reportDaemonCapacity(pollerCtx, d.cfg.DaemonID, runtimeIDs, d.cfg.MaxConcurrentTasks, d.cfg.MaxConcurrentTasks, true, "daemon_capacity")
+			capacityReported = true
 			if err := sleepWithContextOrWakeup(pollerCtx, capacityBackoff(d.cfg.PollInterval), wakeup); err != nil {
 				return
 			}
 			continue
 		}
 		slots := append([]int{slot}, drainAvailableSlots(sem, d.cfg.MaxConcurrentTasks-1)...)
+		if capacityReported {
+			_ = d.client.reportDaemonCapacity(pollerCtx, d.cfg.DaemonID, runtimeIDs, d.cfg.MaxConcurrentTasks-len(slots), d.cfg.MaxConcurrentTasks, false, "daemon_capacity")
+			capacityReported = false
+		}
 
 		// Auto-update barrier: refuse to claim while an update prepares to roll
 		// the process (paired with the re-check in tryAutoUpdate).
 		if !d.tryEnterClaim() {
 			releaseSlots(slots)
+			_ = d.client.reportDaemonCapacity(pollerCtx, d.cfg.DaemonID, runtimeIDs, d.cfg.MaxConcurrentTasks-len(slots), d.cfg.MaxConcurrentTasks, true, "daemon_updating")
+			capacityReported = true
 			if err := sleepWithContextOrWakeup(pollerCtx, d.cfg.PollInterval, wakeup); err != nil {
 				return
 			}
@@ -5721,6 +5730,7 @@ func (d *Daemon) handleTask(ctx context.Context, task Task, slot int) {
 	phaseRecorder := newTaskPhaseRecorder(taskLog.With("task_id", task.ID, "runtime_id", task.RuntimeID), time.Now)
 	ctx = withTaskPhaseRecorder(ctx, phaseRecorder)
 	phaseRecorder.Mark(taskPhaseClaimed)
+	_ = d.client.reportRunPreparation(ctx, task.ID, "preparing_session")
 	defer phaseRecorder.Mark(taskPhaseFinished)
 	agentName := "agent"
 	if task.Agent != nil {
@@ -6238,14 +6248,6 @@ func (d *Daemon) acquireLocalDirectoryLock(ctx context.Context, task Task, assig
 		// the daemon's own logs, which is where an operator debugging a wedged
 		// lock looks for it.
 		reason := assignment.DisplayName()
-		if holder != "" {
-			// Known rough edge: this clause is English and the client renders it
-			// inside a localized "Waiting for {reason}" label, so a zh/ja/ko user
-			// sees mixed script. Fixing it properly means sending the directory
-			// and the holder as separate fields and localizing the join on the
-			// client — worth doing if this hint grows, not for one parenthetical.
-			reason = fmt.Sprintf("%s (held by task %s)", reason, shortID(holder))
-		}
 		taskLog.Info("正在等待本地目录空闲", "holder", holder)
 		if waitErr := d.client.MarkTaskWaitingLocalDirectory(ctx, task.ID, reason); waitErr != nil {
 			// Non-fatal: even if the server-side flag fails to update,
@@ -6253,6 +6255,7 @@ func (d *Daemon) acquireLocalDirectoryLock(ctx context.Context, task Task, assig
 			// The UI just won't see the explicit "waiting" badge.
 			taskLog.Warn("更新目录等待状态失败", "error", waitErr)
 		}
+		_ = d.client.reportRunPreparation(ctx, task.ID, "local_directory_busy")
 		prepareLeaseOnce.Do(func() {
 			stopPrepareLease = d.startTaskPrepareLeaseExtender(waitCtx, task, taskLog)
 		})
@@ -6316,6 +6319,9 @@ func (d *Daemon) acquireLocalDirectoryLock(ctx context.Context, task Task, assig
 		return nil, true
 	}
 	taskLog.Info("已占用本地目录")
+	if waitCounted {
+		_ = d.client.reportRunPreparation(ctx, task.ID, "preparing_session")
+	}
 	return release, false
 }
 
@@ -8421,10 +8427,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			release, lockErr := d.acquireWorktreeSnapshotLock(waitCtx, task, localAssignment, func(holder string) {
 				d.resourceWaitTasks.Add(1)
 				waitCounted = true
-				reason := fmt.Sprintf("local_directory %s", localAssignment.AbsPath)
-				if holder != "" {
-					reason = fmt.Sprintf("%s (held by task %s)", reason, shortID(holder))
-				}
+				reason := localAssignment.DisplayName()
 				taskLog.Info("local_directory: worktree snapshot waiting for holder",
 					"holder", holder)
 				if waitErr := d.client.MarkTaskWaitingLocalDirectory(waitCtx, task.ID, reason); waitErr != nil {
@@ -8432,6 +8435,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 					// show the explicit "waiting" badge.
 					taskLog.Warn("local_directory: mark waiting status failed", "error", waitErr)
 				}
+				_ = d.client.reportRunPreparation(waitCtx, task.ID, "worktree_snapshot_busy")
 				cancelled := d.watchTaskCancellation(waitCtx, task.ID, pollInterval, taskLog)
 				go func() {
 					select {
@@ -8450,6 +8454,9 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			}
 			env, err = d.prepareExecutionEnvironment(prepareCtx, prepParams)
 			release()
+			if waitCounted {
+				_ = d.client.reportRunPreparation(prepareCtx, task.ID, "preparing_session")
+			}
 			if err != nil {
 				return TaskResult{}, asEnvironmentSetupFailure(fmt.Errorf("prepare execution environment: %w", err))
 			}

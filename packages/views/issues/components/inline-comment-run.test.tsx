@@ -257,7 +257,12 @@ describe("InlineCommentRun", () => {
     expect(expanded).toBe(before);
     expect(expanded).toHaveFocus();
     expect(expanded).toHaveAttribute("aria-expanded", "true");
-    await screen.findByText("pnpm test");
+    if (status === "queued") {
+      expect(screen.getByText("Reason code")).toBeInTheDocument();
+      expect(api.listTaskMessages).not.toHaveBeenCalled();
+    } else {
+      await screen.findByText("pnpm test");
+    }
     fireEvent.click(expanded, { detail: 0 });
     expect(screen.getByRole("button", { name: /View activity/ })).toHaveFocus();
     expect(screen.getByRole("button", { name: /View activity/ })).toHaveAttribute("aria-expanded", "false");
@@ -396,11 +401,12 @@ describe("InlineCommentRun", () => {
     vi.mocked(api.cancelTask).mockResolvedValue(task({ status: "cancelled" }));
     setup(task({ status: state }));
     if (state === "queued") {
-      expect(screen.getByText("Waiting for an available agent.")).toBeInTheDocument();
+      expect(screen.getByText("Waiting reason not reported")).toBeInTheDocument();
       expect(api.listTaskMessages).not.toHaveBeenCalled();
       vi.mocked(api.listTaskMessages).mockResolvedValue([]);
       fireEvent.click(screen.getByRole("button", { name: /View activity/ }));
-      await screen.findByText("No activity recorded yet.");
+      expect(screen.getByText("Reason code")).toBeInTheDocument();
+      expect(api.listTaskMessages).not.toHaveBeenCalled();
       expect(screen.queryByText("Waiting for the agent to respond.")).not.toBeInTheDocument();
     }
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));

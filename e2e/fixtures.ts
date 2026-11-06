@@ -497,6 +497,17 @@ export class TestApiClient {
     return this.token;
   }
 
+  async claimAndStartChatTask(runtimeId: string, expectedTaskId: string, capabilities: string[]) {
+    const claimed = await this.authedFetch(`/api/daemon/runtimes/${runtimeId}/tasks/claim`, { method: "POST", body: "{}" });
+    if (!claimed.ok) throw new Error(`task claim failed: ${claimed.status}`);
+    const { task }: { task: { id: string; dispatched_at: string } | null } = await claimed.json();
+    if (task?.id !== expectedTaskId || !task.dispatched_at) throw new Error("unexpected chat task claim");
+    const started = await this.authedFetch(`/api/daemon/tasks/${task.id}/start`, {
+      method: "POST", body: JSON.stringify({ runtime_id: runtimeId, dispatched_at: task.dispatched_at, capabilities }),
+    });
+    if (!started.ok) throw new Error(`task start failed: ${started.status}`);
+  }
+
   async acknowledgeCancelledTask(taskId: string) {
     const response = await this.authedFetch(`/api/daemon/tasks/${taskId}/cancel-ack`, { method: "POST", body: "{}" });
     if (!response.ok) throw new Error(`cancel acknowledgement failed: ${response.status}`);

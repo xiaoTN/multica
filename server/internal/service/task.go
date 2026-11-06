@@ -2426,12 +2426,7 @@ func (s *TaskService) SendDirectChatMessage(
 			if len(attachmentIDs) > 0 {
 				return ErrChatSteerUnavailable
 			}
-			target, err := qtx.LockChatSupplementTarget(ctx, db.LockChatSupplementTargetParams{
-				TaskID: steerTaskID, ChatSessionID: session.ID, AgentID: session.AgentID, WorkspaceID: session.WorkspaceID,
-			})
-			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrChatSteerUnavailable
-			}
+			target, err := lockChatSteerTarget(ctx, qtx, session, steerTaskID)
 			if err != nil {
 				return err
 			}

@@ -16,6 +16,13 @@ const task = (task_id: string, created_at: string) => ({
 });
 
 describe("pending chat queue", () => {
+  it("does not carry a run's steering capability into a different lifecycle or head", () => {
+    const active = { ...task("active", "now"), status: "running", can_steer: false, queued_tasks: [task("next", "later")] };
+    expect(promotePendingChatTask(active, "active", "running").can_steer).toBe(false);
+    expect(promotePendingChatTask(active, "active", "waiting_local_directory").can_steer).toBeUndefined();
+    expect(promotePendingChatTask(active, "next", "running").can_steer).toBeUndefined();
+    expect(removePendingChatTask(active, "active").can_steer).toBeUndefined();
+  });
   it("keeps the active task at the head and follow-ups in FIFO order", () => {
     const active = { ...task("active", "2026-01-01T00:00:00Z"), status: "running" };
     const withLater = enqueuePendingChatTask(active, task("later", "2026-01-01T00:00:02Z"));

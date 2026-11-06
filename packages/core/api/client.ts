@@ -272,6 +272,7 @@ import {
   ChatMessageListSchema,
   ChatMessagesPageSchema,
   ChatPendingTaskSchema,
+  ChatSteerErrorBodySchema,
   ChatSessionListSchema,
   ChatSessionSchema,
   PrioritizeQueuedChatTaskResponseSchema,
@@ -581,6 +582,13 @@ export class ApiError extends Error {
     this.statusText = statusText;
     this.body = body;
   }
+}
+
+export function chatSteerErrorCode(err: unknown): string | undefined {
+  if (!(err instanceof ApiError) || err.status !== 409) return undefined;
+  return parseWithFallback<{ code?: string }>(err.body, ChatSteerErrorBodySchema, {}, {
+    endpoint: "chat steering error",
+  }).code;
 }
 
 function assertAgentConversationStartersWriteSupported(data: {

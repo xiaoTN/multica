@@ -14,6 +14,8 @@
     "default": "Ask Agent团队协作"
   },
   "input": {
+    "steer_unsupported": "This agent does not support steering during this run. Your draft is kept; choose to send after this run.",
+    "steer_target_changed": "The target run has ended or changed. Your draft is kept.",
     "placeholder_no_agent": "Create an agent to start chatting",
     "placeholder_archived": "This session is archived",
     "placeholder_archived_agent": "This agent has been archived",
@@ -40,6 +42,9 @@
     "steer_queued": "This server queued the message for a new run."
   },
   "queue": {
+    "steer_unsupported": "This agent does not support steering during this run. Queued messages will be sent after the run ends.",
+    "steer_target_changed": "The target run has ended or changed. Refreshing the queue.",
+    "steer_message_consumed": "This message is no longer queued. Refreshing the queue.",
     "title_one": "{{count}} queued message",
     "title_other": "{{count}} queued messages",
     "clear": "Clear all",

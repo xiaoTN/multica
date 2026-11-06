@@ -295,6 +295,8 @@ export interface PrioritizeQueuedChatTaskResponse {
 }
 
 export interface ChatPendingTask {
+  /** Negotiated capability of this running turn; absent before start or on older servers. */
+  can_steer?: boolean;
   wait_diagnostic?: import("./agent").RunWaitDiagnostic;
   task_id?: string;
   status?: string;

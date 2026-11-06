@@ -6,7 +6,7 @@ import { ChatQueue } from "./chat-queue";
 
 const TEST_RESOURCES = { en: { chat: enChat } };
 
-function renderQueue(headStatus = "running", sendNowDisabled = false) {
+function renderQueue(headStatus = "running", sendNowDisabled = false, canSteer?: boolean) {
   const callbacks = {
     onSendNow: vi.fn<(taskId: string) => Promise<void>>().mockResolvedValue(),
     onEdit: vi.fn<(taskId: string) => Promise<void>>().mockResolvedValue(),
@@ -18,6 +18,7 @@ function renderQueue(headStatus = "running", sendNowDisabled = false) {
       <ChatQueue
         headStatus={headStatus}
         sendNowDisabled={sendNowDisabled}
+        canSteer={canSteer}
         tasks={[
           {
             task_id: "task-2",
@@ -131,6 +132,14 @@ describe("ChatQueue", () => {
 // same invoke gate as a fresh send. When the caller has lost permission to run
 // the agent, a live-looking Steer button just walks them into a 403.
 describe("ChatQueue send-now gating", () => {
+  it("explains a run that did not negotiate steering without suggesting a retry", () => {
+    const { onSendNow } = renderQueue("running", false, false);
+    const steer = screen.getAllByRole("button", { name: "This agent does not support steering during this run. Queued messages will be sent after the run ends." })[0]!;
+    expect(steer).toBeDisabled();
+    fireEvent.click(steer);
+    expect(onSendNow).not.toHaveBeenCalled();
+    expect(screen.getByText("First follow-up")).toBeVisible();
+  });
   it("blocks Steer when the caller may no longer invoke the agent", async () => {
     const { onSendNow } = renderQueue("running", true);
 

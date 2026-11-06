@@ -3,12 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, ApiError } from "@multica/core/api";
 import { useCommentComposerStore } from "@multica/core/issues/stores/comment-composer-store";
 import { useChatSend } from "./use-chat-send";
+import enChat from "../../locales/en/chat.json";
 
 const queries = vi.hoisted(() => ({ fetchQuery: vi.fn() }));
 vi.mock("@tanstack/react-query", async (original) => ({ ...(await original<typeof import("@tanstack/react-query")>()), useQueryClient: () => queries }));
 const toast = vi.hoisted(() => ({ error: vi.fn(), info: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
-vi.mock("../../i18n", () => ({ useT: () => ({ t: () => "delivery notice" }) }));
+vi.mock("../../i18n", () => ({ useT: () => ({ t: (select: (chat: typeof enChat) => string) => select(enChat) }) }));
 vi.mock("@multica/core/api", async (original) => ({
   ...(await original<typeof import("@multica/core/api")>()),
   api: { sendChatMessage: vi.fn() },
@@ -22,6 +23,17 @@ beforeEach(() => {
 });
 
 describe("chat send routing", () => {
+  it.each([
+    ["chat_steer_unsupported", enChat.input.steer_unsupported],
+    ["chat_steer_target_changed", enChat.input.steer_target_changed],
+    ["future_reason", enChat.input.steer_unavailable],
+  ])("explains direct steering refusal %s without accepting the draft", async (code, copy) => {
+    vi.mocked(api.sendChatMessage).mockRejectedValue(new ApiError("refused", 409, "Conflict", { code }));
+    const { result } = renderHook(() => useChatSend("chat"));
+    expect(await result.current.sendMessage("chat", "retain draft", undefined, "run")).toBeNull();
+    expect(toast.error).toHaveBeenCalledWith(copy);
+    expect(api.sendChatMessage).toHaveBeenCalledTimes(1);
+  });
   it.each([
     ["steer", "after_run", "queue"],
     ["after_run", "steer", "steer"],

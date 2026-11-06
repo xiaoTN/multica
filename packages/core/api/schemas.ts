@@ -2279,6 +2279,7 @@ const ChatQueuedTasksSchema = z.array(z.unknown()).transform((tasks) =>
 // fields optional so callers can distinguish an older server from an empty
 // queue. A malformed queue row is ignored without discarding a valid head.
 export const ChatPendingTaskSchema: z.ZodType<ChatPendingTask> = z.object({
+  can_steer: z.boolean().optional().catch(undefined),
   wait_diagnostic: RunWaitDiagnosticSchema.nullish().transform((v) => v ?? undefined).catch(undefined),
   wait_reason: z.string().optional().catch(undefined),
   task_id: z.string().optional(),
@@ -2286,6 +2287,10 @@ export const ChatPendingTaskSchema: z.ZodType<ChatPendingTask> = z.object({
   created_at: z.string().optional(),
   supports_queue: z.boolean().optional(),
   queued_tasks: ChatQueuedTasksSchema.optional(),
+}).loose();
+
+export const ChatSteerErrorBodySchema = z.object({
+  code: z.string().optional().catch(undefined),
 }).loose();
 
 export const EMPTY_CHAT_PENDING_TASK: ChatPendingTask = {};

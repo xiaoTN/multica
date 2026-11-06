@@ -1,6 +1,7 @@
 export {
   ApiClient,
   ApiError,
+  chatSteerErrorCode,
   clientErrorMessage,
   dispatchReasonCode,
   errorCode,

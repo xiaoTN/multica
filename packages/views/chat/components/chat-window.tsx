@@ -954,6 +954,7 @@ export function ChatWindow() {
       <ChatQueue
         tasks={queuedTasks}
         headStatus={pendingTask?.status}
+        canSteer={pendingTask?.can_steer}
         onSendNow={handleSendQueuedTaskNow}
         sendNowDisabled={isAgentAccessRevoked}
         onEdit={handleEditQueuedTask}

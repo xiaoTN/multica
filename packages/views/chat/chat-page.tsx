@@ -382,6 +382,7 @@ export function ChatPage() {
       <ChatQueue
         tasks={queuedTasks}
         headStatus={c.pendingTask?.status}
+        canSteer={c.pendingTask?.can_steer}
         onSendNow={c.handleSendQueuedTaskNow}
         sendNowDisabled={c.isAgentAccessRevoked}
         onEdit={c.handleEditQueuedTask}

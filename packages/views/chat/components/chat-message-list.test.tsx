@@ -406,6 +406,39 @@ describe("ChatMessageList live timeline (MUL-3960 regression)", () => {
 });
 
 describe("ChatMessageList tool rows (#8835 regression)", () => {
+  it.each([false, true])("retains full long tool details when settled=%s (IHOME-39)", async (settled) => {
+    const tool = `command_${"0123456789abcdef".repeat(100)}`;
+    const command = `https://example.test/${"path/".repeat(500)}`;
+    const output = JSON.stringify({ result: "x".repeat(5000) });
+    const qc = new QueryClient();
+    qc.setQueryData(chatKeys.taskMessages(TASK_ID), [
+      taskMsg(0, "tool_use", { tool, input: { command } }),
+      taskMsg(1, "tool_result", { tool, output }),
+    ]);
+    render(
+      <I18nProvider locale="en" resources={TEST_RESOURCES}>
+        <QueryClientProvider client={qc}>
+          <ChatMessageList
+            messages={settled ? [{
+              id: "long-tool-answer", chat_session_id: "session-1", role: "assistant",
+              content: "Done", task_id: TASK_ID, created_at: "2026-11-06T00:00:00Z",
+            }] : []}
+            pendingTask={settled ? null : { task_id: TASK_ID, status: "running" }}
+            availability="online"
+          />
+        </QueryClientProvider>
+      </I18nProvider>,
+    );
+    const fold = await screen.findByRole("button", { name: "2 steps" });
+    if (settled) fireEvent.click(fold);
+    const label = screen.getByText(tool, { exact: true });
+    expect(label).toHaveAttribute("title", tool);
+    fireEvent.click(label.closest("button")!);
+    expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent === JSON.stringify({ command }, null, 2))).toBeInTheDocument();
+    fireEvent.click(screen.getByText((text, element) => element?.tagName === "SPAN" && text.includes(output.slice(0, 100))));
+    expect(screen.getByText(output, { exact: true }).tagName).toBe("PRE");
+  });
+
   // An HTTP-proxy MCP tool (treg's `call`) passes `query` as an object of URL
   // parameters. The row summary returned it as-is, React threw on an object
   // child, and expanding the settled fold took down the whole chat.

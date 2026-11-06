@@ -1249,13 +1249,13 @@ function OuterProcessFold({
   const displayedStepCount = stepCount ?? items.length;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
+    <Collapsible open={open} onOpenChange={setOpen} className="min-w-0 max-w-full">
       <CollapsibleTrigger className="flex items-center gap-1 text-caption text-muted-foreground hover:text-foreground transition-colors">
         {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
         <span>{t(($) => $.message_list.process_steps, { count: displayedStepCount })}</span>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="mt-1 rounded-lg border bg-muted/20 p-2 space-y-0.5">
+        <div className="mt-1 min-w-0 rounded-lg border bg-muted/20 p-2 space-y-0.5">
           {items.map((item) =>
             item.type === "text" ? (
               <MiddleTextRow
@@ -1288,7 +1288,7 @@ function MiddleTextRow({
   phase?: "streaming" | "settled";
 }) {
   return (
-    <div className="py-0.5 text-caption text-muted-foreground">
+    <div className="min-w-0 py-0.5 text-caption text-muted-foreground [overflow-wrap:anywhere]">
       <RichContent
         content={item.content ?? ""}
         attachments={attachments}
@@ -1328,8 +1328,8 @@ function ToolCallRow({ item }: { item: ChatTimelineItem }) {
   const hasInput = item.input && Object.keys(item.input).length > 0;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="flex w-full items-center gap-1.5 rounded-xs px-1 -mx-1 py-0.5 text-caption hover:bg-accent/30 transition-colors">
+    <Collapsible open={open} onOpenChange={setOpen} className="min-w-0 max-w-full">
+      <CollapsibleTrigger className="flex w-full min-w-0 items-center gap-1.5 rounded-xs px-1 -mx-1 py-0.5 text-caption hover:bg-accent/30 transition-colors">
         <ChevronRight
           className={cn(
             "h-3 w-3 shrink-0 text-muted-foreground transition-transform",
@@ -1337,8 +1337,8 @@ function ToolCallRow({ item }: { item: ChatTimelineItem }) {
             !hasInput && "invisible",
           )}
         />
-        <span className="font-medium text-foreground shrink-0">{item.tool}</span>
-        {summary && <span className="truncate text-muted-foreground">{summary}</span>}
+        <span className="min-w-0 truncate font-medium text-foreground" title={item.tool}>{item.tool}</span>
+        {summary && <span className="min-w-0 flex-1 truncate text-muted-foreground">{summary}</span>}
       </CollapsibleTrigger>
       {hasInput && (
         <CollapsibleContent>
@@ -1363,18 +1363,18 @@ function ToolResultRow({ item }: { item: ChatTimelineItem }) {
     : t(($) => $.message_list.tool_result_unnamed);
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="flex w-full items-start gap-1.5 rounded-xs px-1 -mx-1 py-0.5 text-caption hover:bg-accent/30 transition-colors">
+    <Collapsible open={open} onOpenChange={setOpen} className="min-w-0 max-w-full">
+      <CollapsibleTrigger className="flex w-full min-w-0 items-start gap-1.5 rounded-xs px-1 -mx-1 py-0.5 text-caption hover:bg-accent/30 transition-colors">
         <ChevronRight
           className={cn("h-3 w-3 shrink-0 text-muted-foreground transition-transform mt-0.5", open && "rotate-90")}
         />
-        <span className="text-muted-foreground truncate">
+        <span className="min-w-0 flex-1 truncate text-muted-foreground">
           {labelPrefix}{preview}
         </span>
       </CollapsibleTrigger>
       <CollapsibleContent>
         <pre className="ml-[18px] mt-0.5 max-h-40 overflow-auto rounded-xs bg-muted/50 p-2 text-caption text-muted-foreground whitespace-pre-wrap break-all">
-          {output.length > 4000 ? output.slice(0, 4000) + "\n... (truncated)" : output}
+          {output}
         </pre>
       </CollapsibleContent>
     </Collapsible>
@@ -1389,13 +1389,13 @@ function ThinkingRow({ item }: { item: ChatTimelineItem }) {
   const preview = text.length > 150 ? text.slice(0, 150) + "..." : text;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="flex w-full items-start gap-1.5 rounded-xs px-1 -mx-1 py-0.5 text-caption hover:bg-accent/30 transition-colors">
+    <Collapsible open={open} onOpenChange={setOpen} className="min-w-0 max-w-full">
+      <CollapsibleTrigger className="flex w-full min-w-0 items-start gap-1.5 rounded-xs px-1 -mx-1 py-0.5 text-caption hover:bg-accent/30 transition-colors">
         <Brain className="h-3 w-3 shrink-0 text-faint-foreground mt-0.5" />
-        <span className="text-muted-foreground italic truncate">{preview}</span>
+        <span className="min-w-0 flex-1 truncate text-muted-foreground italic">{preview}</span>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <pre className="ml-[18px] mt-0.5 max-h-40 overflow-auto rounded-xs bg-muted/30 p-2 text-caption text-muted-foreground whitespace-pre-wrap break-words">
+        <pre className="ml-[18px] mt-0.5 max-h-40 overflow-auto rounded-xs bg-muted/30 p-2 text-caption text-muted-foreground whitespace-pre-wrap break-all">
           {text}
         </pre>
       </CollapsibleContent>
@@ -1407,7 +1407,7 @@ function ErrorRow({ item }: { item: ChatTimelineItem }) {
   return (
     <div className="flex items-start gap-1.5 px-1 -mx-1 py-0.5 text-caption">
       <AlertCircle className="h-3 w-3 shrink-0 text-destructive mt-0.5" />
-      <span className="text-destructive">{item.content}</span>
+      <span className="min-w-0 break-all text-destructive">{item.content}</span>
     </div>
   );
 }

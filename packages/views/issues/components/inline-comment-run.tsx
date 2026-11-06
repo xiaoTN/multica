@@ -357,7 +357,7 @@ function InlineStep({ row, live, formatText }: { row: TraceRow; live: boolean; f
       <TruncatedTooltip content={summary}>
         <span className={cn("min-w-0 flex-1 truncate", error && "text-destructive")}>{summary}</span>
       </TruncatedTooltip>
-      {(grouped || call) && <span className="shrink-0 text-micro text-muted-foreground">
+      {(grouped || call) && <span className="min-w-0 max-w-[50%] truncate text-micro text-muted-foreground" title={grouped ? undefined : row.tool}>
         {grouped ? t(($) => $.inline_run.steps, { count: row.steps.length }) : row.tool}
       </span>}
       <ChevronRight ref={disclosure.chevronRef} aria-hidden className={cn("size-3 shrink-0 text-muted-foreground", open && "rotate-90")} />

@@ -109,6 +109,20 @@ describe("chat submit shortcuts", () => {
     press(editor, event("Enter", { repeat: true }));
     expect(submitted).toEqual([]);
   });
+
+  it("consumes held send keys without inserting new paragraphs after a focus handoff", () => {
+    const submitted: (ShortcutActionId | undefined)[] = [];
+    const editor = makeEditor("Keep this draft", (id) => submitted.push(id), [], ["chatSteer", "chatQueue"]);
+    editors.push(editor);
+    editor.commands.focus("end");
+    const before = editor.getJSON();
+    expect(press(editor, event("Enter", { repeat: true }))).toBe(true);
+    expect(press(editor, event("Enter", { ctrlKey: true, repeat: true }))).toBe(true);
+    expect(editor.getJSON()).toEqual(before);
+    expect(submitted).toEqual([]);
+    press(editor, event("Enter"));
+    expect(submitted).toEqual(["chatSteer"]);
+  });
 });
 
 afterEach(() => {

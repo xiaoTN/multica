@@ -1,13 +1,13 @@
 "use client";
 
-import { useRef, useState, useEffect, useMemo } from "react";
+import { useRef, useState, useEffect, useMemo, type RefObject } from "react";
 import { cn } from "@multica/ui/lib/utils";
 import { ContentEditor, type ContentEditorRef, useFileDropZone, FileDropOverlay, useLazyEditor, useUploadGate, useComposerSubmit } from "../../editor";
 import { FileUploadButton } from "../../editor/file-upload-button";
 import { SubmitButton } from "@multica/ui/components/common/submit-button";
 import { Button } from "@multica/ui/components/ui/button";
 import { contentReferencesAttachment, type AgentTask } from "@multica/core/types";
-import { useShortcut } from "@multica/core/shortcuts";
+import { useAnnotationSendShortcut } from "./use-annotation-send-shortcut";
 import { ShortcutKeycaps } from "../../common/shortcut-keycaps";
 import { useCommentDraftStore } from "@multica/core/issues/stores";
 import { composeAnnotatedReply, hasReplyIntent } from "@multica/core/drafts/reply-annotation";
@@ -31,6 +31,7 @@ interface CommentInputProps {
   /** Called after the server accepts the comment and the composer is cleared. */
   onAccepted?: (commentId: string) => void;
   onEditAnnotation?: (id: string) => boolean;
+  annotationFocusRequest?: RefObject<boolean>;
 }
 
 // A top-level comment belongs to no thread, so it takes a running turn by
@@ -39,10 +40,9 @@ function steerTopLevelByDefault(task: AgentTask): boolean {
   return !task.trigger_comment_id;
 }
 
-function CommentInput({ issueId, onSubmit, onAccepted, onEditAnnotation }: CommentInputProps) {
+function CommentInput({ issueId, onSubmit, onAccepted, onEditAnnotation, annotationFocusRequest }: CommentInputProps) {
   const { t } = useT("issues");
   const { t: tEditor } = useT("editor");
-  const sendShortcut = useShortcut("send");
   const editorRef = useRef<ContentEditorRef>(null);
   // Sending mid-upload would strip the pending image's blob URL out of the
   // markdown and bind no attachment id — the comment posts without the file.
@@ -60,6 +60,7 @@ function CommentInput({ issueId, onSubmit, onAccepted, onEditAnnotation }: Comme
   const [content, setContent] = useState(initialDraft ?? "");
   const [isEmpty, setIsEmpty] = useState(() => !initialDraft?.trim());
   const annotations = useCommentDraftStore((s) => s.getAnnotations(draftKey));
+  const sendShortcut = useAnnotationSendShortcut(annotations.length > 0);
   const composedContent = useMemo(() => composeAnnotatedReply(content, annotations), [content, annotations]);
   const canSend = annotations.length ? hasReplyIntent(content, annotations) : !isEmpty;
   const triggerPreview = useCommentTriggerPreview({ issueId, content: canSend ? composedContent : "" });
@@ -92,6 +93,7 @@ function CommentInput({ issueId, onSubmit, onAccepted, onEditAnnotation }: Comme
   // standing intent — mount the real editor immediately so the draft is
   // visible and editable, exactly like the pre-lazy behavior.
   const lazy = useLazyEditor({
+    focusRequest: annotationFocusRequest,
     initialActive:
       !!initialDraft?.trim() ||
       useCommentDraftStore.getState().getUploads(draftKey).length > 0,
@@ -263,6 +265,7 @@ function CommentInput({ issueId, onSubmit, onAccepted, onEditAnnotation }: Comme
             setDraft(draftKey, md);
           }}
           onSubmit={submit}
+          submitShortcut={sendShortcut}
           onUploadFile={handleUpload}
           onUploadingChange={uploadGate.onUploadingChange}
           debounceMs={100}

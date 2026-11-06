@@ -968,7 +968,7 @@ describe("ChatMessageList onboarding starter cards", () => {
 
 
 describe("ChatMessageList reply selections", () => {
-  function fixture() {
+  function fixture(onAnnotationConfirmed?: () => void) {
     Object.defineProperty(document.documentElement, "clientWidth", { configurable: true, value: 1024 });
     Object.defineProperty(document.documentElement, "clientHeight", { configurable: true, value: 768 });
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(new DOMRect(10, 10, 600, 400));
@@ -981,7 +981,7 @@ describe("ChatMessageList reply selections", () => {
           <ChatMessageList messages={[
             { id: "source", chat_session_id: "session", task_id: null, created_at: "2026-11-05T00:00:00Z", role: "assistant", content: "First **bold line**\n\nSecond `code` line" },
             { id: "user", chat_session_id: "session", task_id: null, created_at: "2026-11-05T00:00:00Z", role: "user", content: "User draft" },
-          ]} pendingTask={null} availability={undefined} annotationDraftKey="session" />
+          ]} pendingTask={null} availability={undefined} annotationDraftKey="session" onAnnotationConfirmed={onAnnotationConfirmed} />
         </QueryClientProvider>
       </I18nProvider>,
     );
@@ -995,6 +995,36 @@ describe("ChatMessageList reply selections", () => {
     selection.removeAllRanges(); selection.addRange(range);
     fireEvent.pointerUp(last.parentElement!);
   }
+
+  it("hands off after successful adds and edits, but never for blank, IME or repeated Enter", async () => {
+    const onConfirmed = vi.fn();
+    const { container, saved } = fixture(onConfirmed);
+    select(container.querySelector("strong")!.firstChild!);
+    fireEvent.click(screen.getByText("Add to reply"));
+    const note = await screen.findByRole("textbox", { name: "Comment" });
+    fireEvent.keyDown(note, { key: "Enter" });
+    expect(onConfirmed).not.toHaveBeenCalled();
+    fireEvent.change(note, { target: { value: "Opinion" } });
+    fireEvent.keyDown(note, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(note, { key: "Enter", keyCode: 229 });
+    fireEvent.keyDown(note, { key: "Enter", repeat: true });
+    expect(saved()).toHaveLength(0);
+    expect(onConfirmed).not.toHaveBeenCalled();
+    const bubble = vi.fn();
+    document.addEventListener("keydown", bubble);
+    fireEvent.keyDown(note, { key: "Enter" });
+    document.removeEventListener("keydown", bubble);
+    expect(bubble).not.toHaveBeenCalled();
+    expect(onConfirmed).toHaveBeenCalledTimes(1);
+    expect(saved()).toHaveLength(1);
+    expect(screen.queryByRole("textbox", { name: "Comment" })).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit annotation 1" }));
+    fireEvent.change(await screen.findByRole("textbox", { name: "Comment" }), { target: { value: "Revised" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save annotation" }));
+    expect(onConfirmed).toHaveBeenCalledTimes(2);
+    expect(saved()).toHaveLength(1);
+    expect(saved()[0]!.note).toBe("Revised");
+  });
 
   it("edits notes beside visible multiline selections before confirming consecutive annotations", async () => {
     const { container, saved } = fixture();

@@ -4,10 +4,10 @@ import { useChatStore } from "@multica/core/chat";
 import { EMPTY_REPLY_ANNOTATIONS, MAX_REPLY_ANNOTATIONS } from "@multica/core/drafts/reply-annotation";
 import { useReplyAnnotations } from "../../common/use-reply-annotations";
 
-export function useChatReplySelection(draftKey: string, sources: { id: string; name: string }[], enabled: boolean) {
+export function useChatReplySelection(draftKey: string, sources: { id: string; name: string }[], enabled: boolean, onConfirmed?: () => void) {
   const annotations = useChatStore((s) => s.inputDraftAnnotations[draftKey] ?? EMPTY_REPLY_ANNOTATIONS);
   return useReplyAnnotations({
-    draftKey, sources, annotations, enabled,
+    draftKey, sources, annotations, enabled, onConfirmed,
     contentAttribute: "data-chat-reply-content", scopeAttribute: "data-chat-reply-scope",
     actions: {
       add: (annotation) => {

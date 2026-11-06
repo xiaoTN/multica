@@ -2,14 +2,14 @@
 
 import { composeAnnotatedReply, EMPTY_REPLY_ANNOTATIONS, hasReplyIntent } from "@multica/core/drafts/reply-annotation";
 import { ReplyAnnotations } from "./reply-annotations";
-import { useRef, useState, useEffect, useMemo } from "react";
+import { useRef, useState, useEffect, useMemo, type RefObject } from "react";
 import { ContentEditor, type ContentEditorRef, useFileDropZone, FileDropOverlay, useLazyEditor, useUploadGate, useComposerSubmit } from "../../editor";
 import { FileUploadButton } from "../../editor/file-upload-button";
 import { SubmitButton } from "@multica/ui/components/common/submit-button";
 import { Button } from "@multica/ui/components/ui/button";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { contentReferencesAttachment, type AgentTask } from "@multica/core/types";
-import { useShortcut } from "@multica/core/shortcuts";
+import { useAnnotationSendShortcut } from "./use-annotation-send-shortcut";
 import { ShortcutKeycaps } from "../../common/shortcut-keycaps";
 import { useCommentDraftStore, type CommentDraftKey } from "@multica/core/issues/stores";
 import { cn } from "@multica/ui/lib/utils";
@@ -43,6 +43,7 @@ interface ReplyInputProps {
   draftKey?: CommentDraftKey;
   targetMissing?: boolean;
   onEditAnnotation?: (id: string) => boolean;
+  annotationFocusRequest?: RefObject<boolean>;
   /** Whether a running turn takes this reply by default: true for the turn
    *  that belongs to this thread. Other recipients' turns can still be chosen. */
   steerByDefault?: (task: AgentTask) => boolean;
@@ -63,12 +64,12 @@ function ReplyInput({
   size = "default",
   draftKey,
   onEditAnnotation,
+  annotationFocusRequest,
   targetMissing = false,
   steerByDefault = NEVER_STEER_BY_DEFAULT,
 }: ReplyInputProps) {
   const { t } = useT("issues");
   const { t: tEditor } = useT("editor");
-  const sendShortcut = useShortcut("send");
   const placeholderText = placeholder ?? t(($) => $.reply.placeholder);
   const editorRef = useRef<ContentEditorRef>(null);
   const composerRef = useRef<HTMLDivElement>(null);
@@ -87,6 +88,7 @@ function ReplyInput({
   const setDraft = useCommentDraftStore((s) => s.setDraft);
   const [isEmpty, setIsEmpty] = useState(!initialDraft?.trim());
   const annotations = useCommentDraftStore((s) => draftKey ? s.getAnnotations(draftKey) : EMPTY_REPLY_ANNOTATIONS);
+  const sendShortcut = useAnnotationSendShortcut(annotations.length > 0);
   const composedContent = useMemo(() => composeAnnotatedReply(content, annotations), [content, annotations]);
   const canSend = !targetMissing && (annotations.length ? hasReplyIntent(content, annotations) : !isEmpty);
   const triggerPreview = useCommentTriggerPreview({ issueId, parentId, content: canSend ? composedContent : "" });
@@ -118,6 +120,7 @@ function ReplyInput({
   // into a live editor when the card remounts, an untouched box folds back
   // to the shell.
   const lazy = useLazyEditor({
+    focusRequest: annotationFocusRequest,
     initialActive:
       !!initialDraft?.trim() ||
       (draftKey ? useCommentDraftStore.getState().getUploads(draftKey).length > 0 : false),
@@ -272,6 +275,7 @@ function ReplyInput({
               if (draftKey) setDraft(draftKey, md);
             }}
             onSubmit={submit}
+            submitShortcut={sendShortcut}
             onUploadFile={handleUpload}
             onUploadingChange={uploadGate.onUploadingChange}
             debounceMs={100}

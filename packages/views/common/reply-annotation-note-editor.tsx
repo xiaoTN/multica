@@ -25,7 +25,8 @@ export function ReplyAnnotationNoteEditor({ inputRef, note, confirmLabel, onChan
       onKeyDown={(event) => {
         if (event.key === "Enter" && !isImeComposing(event) &&
           !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
-          event.preventDefault(); event.stopPropagation(); onConfirm();
+          event.preventDefault(); event.stopPropagation();
+          if (!event.repeat) onConfirm();
         } else if (event.key === "Escape" && !isImeComposing(event)) {
           event.preventDefault(); event.stopPropagation(); onCancel();
         }

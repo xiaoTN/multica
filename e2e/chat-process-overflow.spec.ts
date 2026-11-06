@@ -2,6 +2,7 @@ import "./env";
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import pg from "pg";
 import { TestApiClient } from "./fixtures";
+import { randomUUID } from "node:crypto";
 
 const longTool = `multica_issue_comment_list_${"01a1af34-999f-7e2c-a878-5b3196fcdf2d_--thread_".repeat(28)}--tail_4_--output_json`;
 const longCommand = `https://example.test/${"path/01a1af34-999f-7e2c-a878-5b3196fcdf2d/".repeat(35)}`;
@@ -38,6 +39,7 @@ test("long process rows stay inside chat, comment runs and the full log", async 
   let agentId: string | undefined;
   let sessionId: string | undefined;
   const taskIds: string[] = [];
+  const agentName = `Overflow fixture ${randomUUID().slice(0, 8)}`;
   try {
     await api.loginLocal();
     await api.markUserOnboarded();
@@ -48,7 +50,7 @@ test("long process rows stay inside chat, comment runs and the full log", async 
     runtimeId = (await database.query(`INSERT INTO agent_runtime (workspace_id,name,runtime_mode,provider,status,device_info,metadata,owner_id,last_seen_at)
       VALUES ($1,'Overflow fixture','cloud','codex','online','E2E fixture','{}',$2,now()) RETURNING id`, [workspace.id, userId])).rows[0].id;
     agentId = (await database.query(`INSERT INTO agent (workspace_id,name,description,instructions,runtime_mode,runtime_config,runtime_id,visibility,permission_mode,max_concurrent_tasks,owner_id)
-      VALUES ($1,'Overflow fixture','','','cloud','{}',$2,'private','private',1,$3) RETURNING id`, [workspace.id, runtimeId, userId])).rows[0].id;
+      VALUES ($1,$4,'','','cloud','{}',$2,'private','private',1,$3) RETURNING id`, [workspace.id, runtimeId, userId, agentName])).rows[0].id;
     sessionId = (await database.query(`INSERT INTO chat_session (workspace_id,agent_id,creator_id,title,status,explicitly_created_at)
       VALUES ($1,$2,$3,'Process overflow verification','active',now()) RETURNING id`, [workspace.id, agentId, userId])).rows[0].id;
     const issue = await api.createIssue("Process overflow verification");

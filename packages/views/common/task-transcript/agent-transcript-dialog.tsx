@@ -1755,8 +1755,8 @@ function StepInspector({
     <aside className="flex w-full shrink-0 flex-col border-l-0 bg-muted/25 md:w-[26rem] md:border-l">
       <div className="flex items-center gap-2 border-b px-3 py-2">
         <StepIcon step={step} className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 truncate text-label font-semibold" title={title}>{title}</span>
-        <span className="flex min-w-0 flex-1 items-center gap-1.5 text-micro text-muted-foreground">
+        <span className="min-w-0 flex-1 truncate text-label font-semibold" title={title}>{title}</span>
+        <span className="flex shrink-0 items-center gap-1.5 text-micro text-muted-foreground">
           {offset && <span className="font-mono tabular-nums">{offset}</span>}
           {call?.durationMs !== undefined && (
             <>

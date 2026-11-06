@@ -311,6 +311,21 @@ func (c *Client) claimTasksWithHints(ctx context.Context, daemonID string, runti
 	return resp, nil
 }
 
+func (c *Client) reportDaemonCapacity(ctx context.Context, daemonID string, runtimeIDs []string, occupied, limit int, blocked bool, reason string) error {
+	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	return c.postJSON(reqCtx, "/api/daemon/tasks/claim", map[string]any{
+		"daemon_id": daemonID, "runtime_ids": runtimeIDs, "max_tasks": 0,
+		"capacity": map[string]any{"occupied": occupied, "limit": limit, "blocked": blocked, "reason": reason},
+	}, nil)
+}
+
+func (c *Client) reportRunPreparation(ctx context.Context, taskID, code string) error {
+	reportCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	return c.postJSON(reportCtx, "/api/daemon/tasks/"+taskID+"/progress", map[string]any{"preparation_code": code}, nil)
+}
+
 // isBatchClaimUnsupported reports whether err is a 404 from the batch claim
 // endpoint — i.e. the server predates the /api/daemon/tasks/claim route and the
 // daemon must fall back to the legacy per-runtime claim (MUL-4257). The batch

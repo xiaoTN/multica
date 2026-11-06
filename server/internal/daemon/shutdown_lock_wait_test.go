@@ -64,6 +64,13 @@ func TestHandleTask_LocalDirectoryWaitCancellation(t *testing.T) {
 				switch {
 				case strings.HasSuffix(r.URL.Path, "/wait-local-directory"):
 					parked <- struct{}{}
+				case strings.HasSuffix(r.URL.Path, "/progress"):
+					var body struct {
+						Code string `json:"preparation_code"`
+					}
+					if err := json.NewDecoder(r.Body).Decode(&body); err != nil || (body.Code != "preparing_session" && body.Code != "local_directory_busy") {
+						t.Errorf("unexpected preparation: %+v, error=%v", body, err)
+					}
 				case strings.HasSuffix(r.URL.Path, "/prepare-lease"):
 					_, _ = io.Copy(io.Discard, r.Body)
 					select {

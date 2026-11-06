@@ -1397,7 +1397,7 @@ describe("IssueDetail (shared)", () => {
     expect(container.querySelector(`[data-run-id="${taskId}"]`)).toBeNull();
     mockApiObj.listTimeline.mockResolvedValue([root]);
     act(() => client.setQueryData(issueKeys.timeline("issue-1"), [root]));
-    await screen.findByText("Waiting for an available agent.");
+    await screen.findByText("Waiting reason not reported");
     const userBlock = container.querySelector(`#comment-body-${root.id}`)!.parentElement!;
     const agentBlock = container.querySelector(`[data-run-comment-id="${taskId}"]`)!;
     expect(agentBlock).not.toBeNull();
@@ -1463,7 +1463,7 @@ describe("IssueDetail (shared)", () => {
     mockApiObj.listTasksByIssue.mockResolvedValue([task]);
     const { container } = renderIssueDetail();
 
-    await screen.findByText("Waiting for an available agent.");
+    await screen.findByText("Waiting reason not reported");
     const run = container.querySelector(`[data-run-comment-id="${task.id}"]`)!;
     expect(run).not.toBeNull();
     const latestComment = container.querySelector(`#comment-${latest.id}`);
@@ -1538,7 +1538,7 @@ describe("IssueDetail (shared)", () => {
         </QueryClientProvider>
       </I18nProvider>,
     );
-    await screen.findByText("Waiting for an available agent.");
+    await screen.findByText("Waiting reason not reported");
     expect(container.querySelector(`[data-run-comment-id="${task.id}"]`)).not.toBeNull();
     const assignmentSlot = container.querySelector(`[data-run-slot-id="${task.id}"]`);
     const running: AgentTask = { ...task, status: "running", started_at: task.created_at };
@@ -1601,7 +1601,7 @@ describe("IssueDetail (shared)", () => {
     expect(secondRow!.nextElementSibling).toBe(slots[1]);
     expect(thirdRow!.nextElementSibling).toBe(slots[2]);
     fireEvent.click(within(slots[0] as HTMLElement).getByRole("button", { name: /View activity/ }));
-    await within(slots[0] as HTMLElement).findByText("No activity recorded yet.");
+    expect(within(slots[0] as HTMLElement).getByText("Reason code")).toBeInTheDocument();
     for (const index of [0, 1]) {
       const reply: TimelineEntry = { ...mockTimeline[1]!, id: `answer-${index}`, parent_id: index === 0 ? null : root.id,
         source_task_id: tasks[index]!.id, content: `Answer ${index}`, created_at: `2026-01-16T00:01:0${index}Z` };
@@ -1627,7 +1627,7 @@ describe("IssueDetail (shared)", () => {
     expect(slots[2]!.nextElementSibling).toBe(slots[0]);
     expect(slots[0]!.nextElementSibling).toBe(slots[1]);
     expect(container.querySelector(`[data-run-slot-id="${tasks[2]!.id}"]`)).toBe(slots[2]);
-    expect(within(slots[2] as HTMLElement).getByText("Waiting for an available agent.")).toBeInTheDocument();
+    expect(within(slots[2] as HTMLElement).getByText("Waiting reason not reported")).toBeInTheDocument();
   });
 
   it("keeps a downstream run in the thread after its triggering agent reply is projected there", async () => {

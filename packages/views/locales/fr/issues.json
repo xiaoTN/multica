@@ -3,7 +3,7 @@
     "label": "Exécution de {{name}}",
     "stop": "Arrêter",
     "stopping": "Arrêt...",
-    "queued": "En attente d'un agent disponible.",
+    "queued": "Raison de l’attente non signalée",
     "starting": "Préparation de la session de l'agent.",
     "waiting_directory": "En attente de la libération du répertoire de travail par une autre exécution.",
     "thinking": "Réflexion",
@@ -1849,5 +1849,52 @@
       "empty_title": "Aucune vue enregistrée pour l'instant",
       "empty_description": "Réglez les filtres et l'affichage d'une liste de tâches, puis enregistrez-les comme vue."
     }
+  },
+  "run_wait": {
+    "details": "Détails de l’attente",
+    "phase": "Phase",
+    "scope": "Portée",
+    "capacity": "Occupés / limite",
+    "duration": "Attente",
+    "evaluated": "Évaluée à",
+    "unreported": "Non signalée",
+    "blocker": "Exécution bloquante",
+    "reason_code": "Code de raison",
+    "history": "Changements récents",
+    "cleared": "Attente levée",
+    "codes": {
+      "agent_concurrency": "Limite de concurrence de l’agent atteinte",
+      "runtime_concurrency": "Limite de concurrence du runtime atteinte",
+      "daemon_capacity": "Tous les créneaux du daemon sont occupés",
+      "previous_run": "En attente de la fin de l’exécution précédente",
+      "runtime_offline": "Runtime hors ligne ou signal de présence expiré",
+      "runtime_unbound": "Aucun runtime associé",
+      "runtime_rebound": "Association du runtime modifiée ; traitement en attente",
+      "wakeup_inactive": "Règle de réveil inactive ; traitement en attente",
+      "awaiting_claim": "En file sur le serveur ; raison du blocage non signalée",
+      "awaiting_daemon": "Distribuée ; en attente de confirmation du daemon",
+      "preparing_session": "Reçue ; préparation de la session de l’agent",
+      "local_directory_busy": "En attente de la libération du répertoire local",
+      "worktree_snapshot_busy": "En attente du répertoire pour préparer l’instantané du worktree",
+      "unknown": "Raison de l’attente non signalée",
+      "daemon_updating": "Le daemon prépare une mise à jour ; réception suspendue"
+    },
+    "scopes": {
+      "agent": "Agent",
+      "runtime": "Runtime",
+      "daemon": "Daemon de cet ordinateur",
+      "issue_agent": "Agent dans cette tâche",
+      "chat_session": "Session de chat",
+      "quick_create_agent": "Création rapide de l’agent",
+      "local_directory": "Répertoire local",
+      "run": "Exécution"
+    },
+    "phases": {
+      "queued": "File du serveur",
+      "dispatched": "Confirmation du daemon attendue",
+      "resource_wait": "Attente d’une ressource",
+      "preparing": "Préparation de la session"
+    },
+    "seconds": "{{count}} s"
   }
 }

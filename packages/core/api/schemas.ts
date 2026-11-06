@@ -2061,7 +2061,21 @@ const TaskUsageSchema = z.object({
   credits_micros: z.number().optional().catch(undefined),
 }).loose();
 
+export const RunWaitDiagnosticSchema = z.object({
+  code: z.string(),
+  phase: z.string(),
+  scope: z.string(),
+  occupied: z.number().int().nonnegative().optional(),
+  limit: z.number().int().positive().optional(),
+  blocking_task_id: z.string().uuid().optional().catch(undefined),
+  since: z.string().datetime({ offset: true }).optional().catch(undefined),
+  evaluated_at: z.string().datetime({ offset: true }).optional().catch(undefined),
+  message: z.string().optional(),
+});
+
 export const AgentTaskSchema = z.object({
+  wait_diagnostic: RunWaitDiagnosticSchema.nullish().transform((v) => v ?? undefined).catch(undefined),
+  wait_history: z.array(z.object({ at: z.string().datetime({ offset: true }), status: z.string(), diagnostic: RunWaitDiagnosticSchema.nullable() })).optional().catch(undefined),
   wakeup_id: z.string().optional().catch(undefined),
   cancelled_by_comment_change: z.boolean().optional().catch(undefined),
   cancelled_by: TaskCancellationActorSchema.optional().catch(undefined),
@@ -2265,6 +2279,8 @@ const ChatQueuedTasksSchema = z.array(z.unknown()).transform((tasks) =>
 // fields optional so callers can distinguish an older server from an empty
 // queue. A malformed queue row is ignored without discarding a valid head.
 export const ChatPendingTaskSchema: z.ZodType<ChatPendingTask> = z.object({
+  wait_diagnostic: RunWaitDiagnosticSchema.nullish().transform((v) => v ?? undefined).catch(undefined),
+  wait_reason: z.string().optional().catch(undefined),
   task_id: z.string().optional(),
   status: z.string().optional(),
   created_at: z.string().optional(),

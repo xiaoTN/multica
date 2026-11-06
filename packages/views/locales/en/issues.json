@@ -3,7 +3,7 @@
     "label": "{{name}} run",
     "stop": "Stop",
     "stopping": "Stopping...",
-    "queued": "Waiting for an available agent.",
+    "queued": "Waiting reason not reported",
     "starting": "Preparing the agent session.",
     "waiting_directory": "Waiting for another run to release the working directory.",
     "thinking": "Thinking",
@@ -1849,5 +1849,52 @@
       "empty_title": "No saved views yet",
       "empty_description": "Set up filters and display options in an issue list, then save them as a view."
     }
+  },
+  "run_wait": {
+    "details": "Wait details",
+    "phase": "Phase",
+    "scope": "Scope",
+    "capacity": "Occupied / limit",
+    "duration": "Waiting",
+    "evaluated": "Evaluated at",
+    "unreported": "Not reported",
+    "blocker": "Blocking run",
+    "reason_code": "Reason code",
+    "history": "Recent wait changes",
+    "cleared": "Wait cleared",
+    "codes": {
+      "agent_concurrency": "Agent concurrency limit reached",
+      "runtime_concurrency": "Runtime concurrency limit reached",
+      "daemon_capacity": "Daemon execution slots are full",
+      "previous_run": "Waiting for the previous run",
+      "runtime_offline": "Runtime offline or heartbeat expired",
+      "runtime_unbound": "No runtime bound",
+      "runtime_rebound": "Runtime binding changed; awaiting scheduling",
+      "wakeup_inactive": "Wakeup rule inactive; awaiting scheduling",
+      "awaiting_claim": "Queued on the server; blocking reason not reported",
+      "awaiting_daemon": "Dispatched; awaiting daemon acknowledgement",
+      "preparing_session": "Claimed; preparing the agent session",
+      "local_directory_busy": "Waiting for the local directory to be released",
+      "worktree_snapshot_busy": "Waiting for a directory to prepare the worktree snapshot",
+      "unknown": "Waiting reason not reported",
+      "daemon_updating": "Daemon is preparing an update; claiming is paused"
+    },
+    "scopes": {
+      "agent": "Agent",
+      "runtime": "Runtime",
+      "daemon": "Daemon on this machine",
+      "issue_agent": "Agent in this issue",
+      "chat_session": "Chat session",
+      "quick_create_agent": "Agent quick create",
+      "local_directory": "Local directory",
+      "run": "Run"
+    },
+    "phases": {
+      "queued": "Server queue",
+      "dispatched": "Awaiting daemon acknowledgement",
+      "resource_wait": "Waiting for a resource",
+      "preparing": "Preparing session"
+    },
+    "seconds": "{{count}} s"
   }
 }

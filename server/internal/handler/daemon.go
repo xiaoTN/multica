@@ -2093,6 +2093,12 @@ func (h *Handler) ClaimTasksByRuntime(w http.ResponseWriter, r *http.Request) {
 		DaemonID   string   `json:"daemon_id"`
 		RuntimeIDs []string `json:"runtime_ids"`
 		MaxTasks   int      `json:"max_tasks"`
+		Capacity   *struct {
+			Occupied int    `json:"occupied"`
+			Limit    int    `json:"limit"`
+			Blocked  bool   `json:"blocked"`
+			Reason   string `json:"reason,omitempty"`
+		} `json:"capacity,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -2124,7 +2130,7 @@ func (h *Handler) ClaimTasksByRuntime(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "max_tasks must not be negative")
 		return
 	}
-	if req.MaxTasks == 0 {
+	if req.MaxTasks == 0 && req.Capacity == nil {
 		writeMeasuredJSON(w, http.StatusOK, map[string]any{"tasks": []AgentTaskResponse{}})
 		return
 	}
@@ -2209,6 +2215,34 @@ func (h *Handler) ClaimTasksByRuntime(w http.ResponseWriter, r *http.Request) {
 	if len(authorized) == 0 {
 		writeMeasuredJSON(w, http.StatusOK, map[string]any{"tasks": []AgentTaskResponse{}})
 		return
+	}
+	if req.Capacity != nil {
+		if req.Capacity.Reason == "" {
+			req.Capacity.Reason = "daemon_capacity"
+		}
+		if req.Capacity.Reason != "daemon_capacity" && req.Capacity.Reason != "daemon_updating" || req.Capacity.Limit <= 0 || req.Capacity.Occupied < 0 || (req.Capacity.Blocked && req.Capacity.Reason == "daemon_capacity" && req.Capacity.Occupied < req.Capacity.Limit) {
+			writeError(w, http.StatusBadRequest, "invalid daemon capacity")
+			return
+		}
+		capacity, _ := json.Marshal(map[string]any{"occupied": req.Capacity.Occupied, "limit": req.Capacity.Limit, "blocked": req.Capacity.Blocked, "reason": req.Capacity.Reason, "evaluated_at": time.Now().UTC()})
+		if err := h.Queries.ReportDaemonCapacity(r.Context(), db.ReportDaemonCapacityParams{RuntimeIds: authorized, Capacity: capacity}); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to record daemon capacity")
+			return
+		}
+		for _, rt := range authorized {
+			if tasks, err := h.Queries.ListPendingTasksByRuntime(r.Context(), rt); err == nil {
+				h.TaskService.RefreshRunWaits(r.Context(), tasks)
+			}
+		}
+	}
+	if req.MaxTasks == 0 {
+		writeMeasuredJSON(w, http.StatusOK, map[string]any{"tasks": []AgentTaskResponse{}})
+		return
+	}
+	// A positive slot-before-claim poll proves the machine is accepting work.
+	// Clear its previous full observation even if the release report was lost.
+	if err := h.Queries.ClearDaemonCapacityWait(r.Context(), authorized); err != nil {
+		slog.Warn("clear daemon capacity observation", "error", err)
 	}
 
 	claimed, err := h.TaskService.ClaimTasksForRuntimes(r.Context(), authorized, maxTasks)
@@ -4795,9 +4829,10 @@ func (h *Handler) MarkTaskWaitingLocalDirectory(w http.ResponseWriter, r *http.R
 
 // ReportTaskProgress broadcasts a progress update.
 type TaskProgressRequest struct {
-	Summary string `json:"summary"`
-	Step    int    `json:"step"`
-	Total   int    `json:"total"`
+	Summary         string `json:"summary"`
+	Step            int    `json:"step"`
+	Total           int    `json:"total"`
+	PreparationCode string `json:"preparation_code,omitempty"`
 }
 
 func (h *Handler) ReportTaskProgress(w http.ResponseWriter, r *http.Request) {
@@ -4812,6 +4847,20 @@ func (h *Handler) ReportTaskProgress(w http.ResponseWriter, r *http.Request) {
 	// Verify ownership and resolve workspace ID.
 	task, ok := h.requireDaemonTaskAccess(w, r, taskID)
 	if !ok {
+		return
+	}
+	if req.PreparationCode != "" {
+		switch req.PreparationCode {
+		case "preparing_session", "local_directory_busy", "worktree_snapshot_busy":
+		default:
+			writeError(w, http.StatusBadRequest, "invalid preparation code")
+			return
+		}
+		if _, err := h.TaskService.SetRunPreparation(r.Context(), task, req.PreparationCode); err != nil {
+			writeError(w, http.StatusConflict, "run is no longer preparing")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
 
@@ -6268,14 +6317,15 @@ const HeaderActiveRunsTruncated = "X-Active-Runs-Truncated"
 // reads none of those fields, and it is an agent spending its own context on
 // the answer, so the payload is cut to what the question needs.
 type ActiveRunSummary struct {
-	TaskID          string  `json:"task_id"`
-	IssueID         string  `json:"issue_id"`
-	IssueIdentifier string  `json:"issue_identifier"`
-	IssueTitle      string  `json:"issue_title"`
-	AgentID         string  `json:"agent_id"`
-	Status          string  `json:"status"`
-	CreatedAt       string  `json:"created_at"`
-	StartedAt       *string `json:"started_at,omitempty"`
+	WaitDiagnostic  *service.RunWaitDiagnostic `json:"wait_diagnostic,omitempty"`
+	TaskID          string                     `json:"task_id"`
+	IssueID         string                     `json:"issue_id"`
+	IssueIdentifier string                     `json:"issue_identifier"`
+	IssueTitle      string                     `json:"issue_title"`
+	AgentID         string                     `json:"agent_id"`
+	Status          string                     `json:"status"`
+	CreatedAt       string                     `json:"created_at"`
+	StartedAt       *string                    `json:"started_at,omitempty"`
 }
 
 // ListTasksByIssue returns tasks for an issue — the execution history behind
@@ -6349,10 +6399,22 @@ func (h *Handler) ListTasksByIssue(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set(HeaderActiveRunsTruncated, "true")
 		}
 		summaries := make([]ActiveRunSummary, len(rows))
+		tasks := make([]db.AgentTaskQueue, 0, len(rows))
+		for _, row := range rows {
+			if task, err := h.Queries.GetAgentTask(r.Context(), row.TaskID); err == nil {
+				tasks = append(tasks, task)
+			}
+		}
+		tasks = h.TaskService.RefreshRunWaits(r.Context(), tasks)
+		waits := make(map[pgtype.UUID]*service.RunWaitDiagnostic, len(tasks))
+		for _, task := range tasks {
+			waits[task.ID] = service.RunWaitForTask(task)
+		}
 		for i, row := range rows {
 			summaries[i] = ActiveRunSummary{
-				TaskID:  uuidToString(row.TaskID),
-				IssueID: uuidToString(row.IssueID),
+				WaitDiagnostic: waits[row.TaskID],
+				TaskID:         uuidToString(row.TaskID),
+				IssueID:        uuidToString(row.IssueID),
 				// Rows span several issues here, so each one has to carry the
 				// issue it belongs to — a caller cannot label it from the task.
 				IssueIdentifier: service.IssueIdentifier(row.IssuePrefix, row.IssueNumber),
@@ -6383,6 +6445,7 @@ func (h *Handler) ListTasksByIssue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tasks = visibleTaskHistory(tasks)
+	tasks = h.TaskService.RefreshRunWaits(r.Context(), tasks)
 	resp := make([]AgentTaskResponse, len(tasks))
 	for i, t := range tasks {
 		resp[i] = taskToResponse(t, workspaceID)

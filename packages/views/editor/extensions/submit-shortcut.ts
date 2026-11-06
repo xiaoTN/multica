@@ -54,6 +54,7 @@ export function shouldReplayNativeEnter(
 export function createSubmitShortcutExtension(
   onSubmit: (actionId: ShortcutActionId) => boolean,
   getActions: () => readonly ShortcutActionId[] = () => ["send"],
+  resolveShortcut: (action: ShortcutActionId) => ShortcutChord | null = getShortcut,
 ) {
   return Extension.create({
     name: "submitShortcut",
@@ -70,9 +71,14 @@ export function createSubmitShortcutExtension(
             handleKeyDown(view, event) {
               if (replayingEnter) return false;
               const actions = getActions();
+              // A held confirmation key can land in this editor after the
+              // annotation popup closes. Consume repeats of send chords so
+              // they neither submit nor fall through to paragraph insertion.
+              if (event.repeat && !view.composing && !isImeComposing(event) &&
+                actions.some((action) => shortcutMatchesEvent(resolveShortcut(action), event))) return true;
 
               if (
-                actions.some((action) => shouldReplayNativeEnter(event, getShortcut(action), view.composing))
+                actions.some((action) => shouldReplayNativeEnter(event, resolveShortcut(action), view.composing))
               ) {
                 replayingEnter = true;
                 try {
@@ -84,7 +90,7 @@ export function createSubmitShortcutExtension(
 
               const action = actions.find((action) =>
                 shouldHandleSubmitShortcut(event, {
-                  configuredShortcut: getShortcut(action),
+                  configuredShortcut: resolveShortcut(action),
                   composing: view.composing,
                 }),
               );

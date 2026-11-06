@@ -7,7 +7,7 @@ export function useCommentAnnotations({ draftKey, ...options }: {
   draftKey: CommentDraftKey;
   sources: { id: string; name: string; revision?: number }[];
   enabled: boolean;
-  onAdded?: () => void;
+  onConfirmed?: () => void;
   editable?: boolean;
 }) {
   const annotations = useCommentDraftStore((s) => s.getAnnotations(draftKey));

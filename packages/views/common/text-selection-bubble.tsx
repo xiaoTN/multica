@@ -65,9 +65,10 @@ export function TextSelectionBubble({ range, source, children, owner, markerRang
     return () => { active = false; cleanup(); };
   }, [range, source, marker, markerRanges, onPositioned]);
 
+  // Markers share the editor's layer above the floating chat panel.
   return createPortal(
     <div ref={ref} data-reply-annotation-overlay={owner}
-      style={{ position: "fixed", zIndex: marker ? 20 : 50, visibility: "hidden", width: "max-content" }}>
+      style={{ position: "fixed", zIndex: 50, visibility: "hidden", width: "max-content" }}>
       {children}
     </div>,
     document.body,

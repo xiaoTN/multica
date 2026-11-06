@@ -3991,6 +3991,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               onSubmit={submitComment}
               onAccepted={scrollToTimelineBottom}
               onEditAnnotation={(annotationId) => descriptionAnnotations.editAnnotation(annotationId, true)}
+              annotationFocusRequest={descriptionAnnotations.focusRequest}
             />
           </div>
         </div>

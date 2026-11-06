@@ -15,6 +15,14 @@ afterEach(() => {
 });
 
 describe("shortcut store", () => {
+  it("retains an explicit Send choice until the user resets it", () => {
+    const chosen = createShortcutChord("Enter", { primary: true });
+    useShortcutStore.getState().setShortcut("send", chosen);
+    expect(useShortcutStore.getState().overrides.send).toEqual(chosen);
+    useShortcutStore.getState().resetShortcut("send");
+    expect(useShortcutStore.getState().overrides.send).toBeUndefined();
+  });
+
   it("defaults chat to Enter for steering and Mod+Enter for queuing", () => {
     expect(getShortcut("chatSteer")).toEqual(createShortcutChord("Enter"));
     expect(getShortcut("chatQueue")).toEqual(createShortcutChord("Enter", { primary: true }));

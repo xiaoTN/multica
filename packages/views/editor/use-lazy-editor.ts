@@ -47,6 +47,8 @@ export interface UseLazyEditorOptions {
    * Hosts that remount per subject (via `key`) don't need this.
    */
   resetKey?: unknown;
+  /** Consumed once, so virtualized composers cannot replay a saved request. */
+  focusRequest?: RefObject<boolean>;
 }
 
 /**
@@ -78,6 +80,7 @@ export function useLazyEditor({
   initialActive = false,
   editorRef,
   resetKey,
+  focusRequest,
 }: UseLazyEditorOptions) {
   const [active, setActive] = useState(initialActive);
   const [ready, setReady] = useState(false);
@@ -125,6 +128,11 @@ export function useLazyEditor({
   );
 
   const onReady = useCallback(() => setReady(true), []);
+  useEffect(() => {
+    if (!focusRequest?.current) return;
+    focusRequest.current = false;
+    activate();
+  }, [focusRequest, activate]);
 
   // Post-swap work — runs after the commit that revealed the ready editor,
   // so focus targets can resolve against a laid-out, live doc and uploads

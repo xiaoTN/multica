@@ -21,7 +21,7 @@ export interface AnnotationActions {
   remove: (id: string) => void;
 }
 
-export function useReplyAnnotations({ draftKey, sources, annotations, actions, enabled, onAdded, editable = false,
+export function useReplyAnnotations({ draftKey, sources, annotations, actions, enabled, onConfirmed, editable = false,
   contentAttribute = "data-comment-content", scopeAttribute = "data-annotation-thread",
 }: {
   draftKey: string;
@@ -31,7 +31,7 @@ export function useReplyAnnotations({ draftKey, sources, annotations, actions, e
   scopeAttribute?: string;
   sources: { id: string; name: string; revision?: number }[];
   enabled: boolean;
-  onAdded?: () => void;
+  onConfirmed?: () => void;
   /** Editable descriptions use their existing toolbar to call addSelection. */
   editable?: boolean;
 }) {
@@ -48,6 +48,7 @@ export function useReplyAnnotations({ draftKey, sources, annotations, actions, e
   editingRef.current = editing;
   const editingId = editing?.id;
   const [error, setError] = useState(false);
+  const [confirmed, setConfirmed] = useState<{ draftKey: string; focusRequest: { current: boolean } } | null>(null);
   const [anchors, setAnchors] = useState<SourceAnchor[]>([]);
   const markerRanges = useMemo(() => {
     const groups = new Map<HTMLElement, Range[]>();
@@ -61,8 +62,6 @@ export function useReplyAnnotations({ draftKey, sources, annotations, actions, e
   annotationsRef.current = annotations;
   const sourcesRef = useRef(sources);
   sourcesRef.current = sources;
-  const onAddedRef = useRef(onAdded);
-  onAddedRef.current = onAdded;
   const anchorKey = annotations.map((a) => a.id).join(",");
   const highlightName = `reply-annotation-${useId().replace(/[^a-zA-Z0-9-]/g, "")}`;
 
@@ -233,8 +232,9 @@ export function useReplyAnnotations({ draftKey, sources, annotations, actions, e
       setError(true);
       return;
     }
-    close(true);
-    if (!editingExisting) onAddedRef.current?.();
+    close();
+    setConfirmed({ draftKey, focusRequest: { current: true } });
+    onConfirmed?.();
   };
 
   // Keep the pending quote identifiable without counting it as an annotation.
@@ -249,6 +249,7 @@ export function useReplyAnnotations({ draftKey, sources, annotations, actions, e
 
   return {
     cardRef,
+    focusRequest: confirmed?.draftKey === draftKey ? confirmed.focusRequest : undefined,
     editAnnotation,
     addSelection,
     captureProps: {

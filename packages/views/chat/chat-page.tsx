@@ -327,6 +327,7 @@ export function ChatPage() {
         <ChatMessageList
           ref={messageListRef}
           annotationDraftKey={c.activeSessionId ?? undefined}
+          onAnnotationConfirmed={c.requestInputFocus}
           onRevealed={() => setRevealedSessionId(c.activeSessionId)}
           key={c.activeSessionId}
           messages={c.messages}

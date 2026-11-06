@@ -29,6 +29,7 @@ async function capture(page: Page, path: string, label: string) {
 
 test("long process rows stay inside chat, comment runs and the full log", async ({ page }, testInfo) => {
   test.setTimeout(240_000);
+  page.setDefaultTimeout(15_000);
   if (!process.env.DATABASE_URL?.includes("/multica_worktree_")) throw new Error("isolated worktree database required");
   const api = new TestApiClient();
   const database = new pg.Client(process.env.DATABASE_URL);
@@ -73,7 +74,9 @@ test("long process rows stay inside chat, comment runs and the full log", async 
         : events;
       for (const [seq, event] of sourceEvents.entries()) {
         await database.query(`INSERT INTO task_message (task_id,seq,type,tool,input,output,content) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [taskId, seq + 1, event.type, "tool" in event ? event.tool : null, "input" in event ? event.input : null, "output" in event ? event.output : null, "content" in event ? event.content : null]);
+          [taskId, seq + 1, event.type, "tool" in event ? event.tool : null,
+            "input" in event ? source === "issue" && event.tool === longTool ? { query: longCommand } : event.input : null,
+            "output" in event ? event.output : null, "content" in event ? event.content : null]);
       }
     }
     await page.addInitScript(token => {

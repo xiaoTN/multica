@@ -785,6 +785,8 @@ function PreviewPanel({
   // keeps them for panning otherwise. Vertical arrows always pan, and a
   // zoomed image still pans horizontally by drag / wheel.
   const canvas = useZoomCanvas({
+    wheelBehavior: "pan",
+    panBounds: "content",
     content: natural,
     horizontalArrowPan: !sequence,
   });

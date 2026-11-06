@@ -31,16 +31,16 @@ describe("localDirectoryLabel", () => {
     ).toBe("Game Client");
   });
 
-  it("shows the path when neither copy names the row — a cleared name must not resurrect", () => {
+  it("uses the directory name when neither copy names the row", () => {
     expect(
       localDirectoryLabel({ label: null, resource_ref: ref() }),
-    ).toBe("/Users/dev/work/game-client");
+    ).toBe("game-client");
   });
 
   it("treats whitespace-only labels as absent instead of rendering a blank row", () => {
     expect(
       localDirectoryLabel({ label: "   ", resource_ref: ref() }),
-    ).toBe("/Users/dev/work/game-client");
+    ).toBe("game-client");
   });
 
   it("trims the winning value", () => {
@@ -50,5 +50,26 @@ describe("localDirectoryLabel", () => {
         resource_ref: ref({ label: "Game Client" }),
       }),
     ).toBe("Renamed Client");
+  });
+
+  it("skips a blank column when the ref has a custom label", () => {
+    expect(localDirectoryLabel({ label: "  ", resource_ref: ref({ label: " My client " }) })).toBe("My client");
+  });
+
+  it.each([
+    ["/Users/xiaoti/CodeRepo/agent-image-review", "agent-image-review"],
+    ["/Users/xiaoti/CodeRepo/multica/", "multica"],
+    ["/projects/中文 目录///", "中文 目录"],
+    ["/projects/ name with spaces /", " name with spaces "],
+    ["/projects/a\\b/", "a\\b"],
+    ["C:\\projects\\中文 目录\\", "中文 目录"],
+    ["D:/projects/client/", "client"],
+    ["\\\\host\\share\\client\\", "client"],
+    ["/", "/"],
+    ["C:\\", "C:\\"],
+  ])("extracts the name of %s without changing the stored path", (path, expected) => {
+    const resource = { label: null, resource_ref: { ...ref(), local_path: path } };
+    expect(localDirectoryLabel(resource)).toBe(expected);
+    expect(resource.resource_ref.local_path).toBe(path);
   });
 });

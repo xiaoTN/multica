@@ -1,7 +1,9 @@
-import { ipcMain, dialog, BrowserWindow } from "electron";
+import { ipcMain, dialog, BrowserWindow, shell, type IpcMainInvokeEvent } from "electron";
 import { access, stat } from "fs/promises";
 import { constants as fsConstants } from "fs";
 import { basename, dirname, isAbsolute, join } from "path";
+import type { DaemonStatus } from "../shared/daemon-types";
+import type { OpenLocalDirectoryResult } from "../shared/local-directory";
 
 export interface PickDirectoryResult {
   ok: boolean;
@@ -93,7 +95,43 @@ function errorMessage(err: unknown): string {
 
 export function setupLocalDirectory(
   windowGetter: () => BrowserWindow | null,
+  openAccess: {
+    isAuthorizedSender: (event: IpcMainInvokeEvent) => boolean;
+    getDaemonStatus: () => Promise<DaemonStatus>;
+  },
 ): void {
+  ipcMain.handle(
+    "local-directory:open",
+    async (event, path: unknown, daemonId: unknown): Promise<OpenLocalDirectoryResult> => {
+      // Only authenticated application windows may invoke the native opener.
+      // A daemon on a forwarded port (e.g. WSL) does not share this filesystem.
+      if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame || !openAccess.isAuthorizedSender(event)) {
+        return { ok: false, reason: "unavailable" };
+      }
+      try {
+        const daemon = await openAccess.getDaemonStatus();
+        if (daemon.state !== "running" || daemon.externallyManaged || !daemon.daemonId || daemon.daemonId !== daemonId) {
+          return { ok: false, reason: "unavailable" };
+        }
+        if (typeof path !== "string" || path.includes("\0") || !isAbsolute(path)) {
+          return { ok: false, reason: "not_absolute" };
+        }
+        const st = await stat(path);
+        if (!st.isDirectory()) return { ok: false, reason: "not_a_directory" };
+        try {
+          await access(path, fsConstants.R_OK);
+        } catch {
+          return { ok: false, reason: "not_readable" };
+        }
+        const error = await shell.openPath(path);
+        return error ? { ok: false, reason: "error", error } : { ok: true };
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") return { ok: false, reason: "not_found" };
+        return { ok: false, reason: "error", error: errorMessage(err) };
+      }
+    },
+  );
+
   ipcMain.handle("local-files:pick", async (event, multiple?: boolean): Promise<string[]> => {
     const win = BrowserWindow.fromWebContents(event.sender) ?? windowGetter();
     if (!win) throw new Error("No window available");

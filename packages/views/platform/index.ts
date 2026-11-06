@@ -6,6 +6,8 @@ export {
   isDesktopShell,
   pickDirectory,
   validateLocalDirectory,
+  canOpenLocalDirectory,
+  openLocalDirectory,
   type PickDirectoryResult,
   type ValidateLocalDirectoryResult,
 } from "./local-directory";

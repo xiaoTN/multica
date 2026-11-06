@@ -31,6 +31,8 @@ export interface ZoomTransform {
   y: number;
 }
 
+export type PanBounds = "visible" | "content";
+
 // Default lower zoom bound. Only a default: `computeMinScale` lowers it for
 // content that cannot fit at 25% — see the comment there.
 export const MIN_SCALE = 0.25;
@@ -115,18 +117,31 @@ export function computeFitTransform(content: Size, viewport: Size): ZoomTransfor
 /**
  * Keeps at least `MIN_VISIBLE_PX` of the content inside the viewport (or all of
  * it, when the content is smaller than that margin), so the canvas can never be
- * panned into nothing.
+ * panned into nothing. Content bounds instead stop at each content edge and
+ * center axes that fit inside the viewport.
  */
 export function clampTransform(
   transform: ZoomTransform,
   content: Size,
   viewport: Size,
+  bounds: PanBounds = "visible",
 ): ZoomTransform {
   if (!hasArea(content) || !hasArea(viewport)) return transform;
 
   const scale = clampScale(transform.scale, computeMinScale(content, viewport));
   const scaledWidth = content.width * scale;
   const scaledHeight = content.height * scale;
+  if (bounds === "content") {
+    return {
+      scale,
+      x: scaledWidth <= viewport.width
+        ? (viewport.width - scaledWidth) / 2
+        : Math.min(0, Math.max(viewport.width - scaledWidth, transform.x)),
+      y: scaledHeight <= viewport.height
+        ? (viewport.height - scaledHeight) / 2
+        : Math.min(0, Math.max(viewport.height - scaledHeight, transform.y)),
+    };
+  }
   const marginX = Math.min(MIN_VISIBLE_PX, scaledWidth);
   const marginY = Math.min(MIN_VISIBLE_PX, scaledHeight);
 
@@ -155,6 +170,7 @@ export function resizeTransform(
   content: Size,
   previousViewport: Size,
   viewport: Size,
+  bounds: PanBounds = "visible",
 ): ZoomTransform {
   if (hasArea(content) && hasArea(previousViewport)) {
     const previousFit = computeFitTransform(content, previousViewport);
@@ -164,7 +180,7 @@ export function resizeTransform(
       Math.abs(transform.y - previousFit.y) < 0.5;
     if (atFit && hasArea(viewport)) return computeFitTransform(content, viewport);
   }
-  return clampTransform(transform, content, viewport);
+  return clampTransform(transform, content, viewport, bounds);
 }
 
 /**
@@ -178,6 +194,7 @@ export function zoomToAt(
   anchor: Point,
   content: Size,
   viewport: Size,
+  bounds: PanBounds = "visible",
 ): ZoomTransform {
   const scale = clampScale(nextScale, computeMinScale(content, viewport));
   if (scale === transform.scale) return transform;
@@ -192,6 +209,7 @@ export function zoomToAt(
     },
     content,
     viewport,
+    bounds,
   );
 }
 
@@ -202,8 +220,9 @@ export function zoomByAt(
   anchor: Point,
   content: Size,
   viewport: Size,
+  bounds: PanBounds = "visible",
 ): ZoomTransform {
-  return zoomToAt(transform, transform.scale * factor, anchor, content, viewport);
+  return zoomToAt(transform, transform.scale * factor, anchor, content, viewport, bounds);
 }
 
 /** Zoom about the viewport center — the anchor to use for keyboard/buttons. */
@@ -212,6 +231,7 @@ export function zoomByAtCenter(
   factor: number,
   content: Size,
   viewport: Size,
+  bounds: PanBounds = "visible",
 ): ZoomTransform {
   return zoomByAt(
     transform,
@@ -219,6 +239,7 @@ export function zoomByAtCenter(
     { x: viewport.width / 2, y: viewport.height / 2 },
     content,
     viewport,
+    bounds,
   );
 }
 
@@ -228,11 +249,13 @@ export function panBy(
   deltaY: number,
   content: Size,
   viewport: Size,
+  bounds: PanBounds = "visible",
 ): ZoomTransform {
   return clampTransform(
     { scale: transform.scale, x: transform.x + deltaX, y: transform.y + deltaY },
     content,
     viewport,
+    bounds,
   );
 }
 
@@ -255,4 +278,16 @@ export function wheelZoomFactor(deltaY: number, deltaMode: number): number {
   // Exponential mapping keeps zooming symmetric: equal and opposite scrolls
   // return to the original scale. The 400 divisor tunes trackpad sensitivity.
   return Math.exp(-pixels / 400);
+}
+
+/** Wheel deltas follow the system's scroll direction and use viewport pixels. */
+export function wheelPanDelta(
+  deltaX: number,
+  deltaY: number,
+  deltaMode: number,
+  viewport: Size,
+): Point {
+  const unitX = deltaMode === 1 ? 16 : deltaMode === 2 ? viewport.width : 1;
+  const unitY = deltaMode === 1 ? 16 : deltaMode === 2 ? viewport.height : 1;
+  return { x: -deltaX * unitX, y: -deltaY * unitY };
 }

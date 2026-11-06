@@ -1,11 +1,18 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithI18n } from "../../test/i18n";
 import en from "../../locales/en/projects.json";
+import type { ProjectResource } from "@multica/core/types";
+import { toast } from "sonner";
 
-const { createResource } = vi.hoisted(() => ({ createResource: vi.fn().mockResolvedValue({}) }));
+const { createResource, updateResource, deleteResource } = vi.hoisted(() => ({
+  createResource: vi.fn().mockResolvedValue({}),
+  updateResource: vi.fn().mockResolvedValue({}),
+  deleteResource: vi.fn().mockResolvedValue({}),
+}));
 
 const RESOURCE = {
   id: "res-1",
@@ -26,10 +33,13 @@ const RESOURCE = {
   created_by: "u1",
 };
 
+let resources: ProjectResource[] = [RESOURCE as ProjectResource];
+const platform = vi.hoisted(() => ({ supported: true, daemonId: "daemon-1" as string | null, running: true, externallyManaged: false }));
+
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: { queryKey?: unknown[] }) => {
     const key = options?.queryKey?.[0];
-    if (key === "project-resources") return { data: [RESOURCE] };
+    if (key === "project-resources") return { data: resources };
     return { data: [] };
   },
   queryOptions: (options: unknown) => options,
@@ -38,8 +48,8 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@multica/core/projects", () => ({
   projectResourcesOptions: () => ({ queryKey: ["project-resources"], queryFn: vi.fn() }),
   useCreateProjectResource: () => ({ mutateAsync: createResource }),
-  useUpdateProjectResource: () => ({ mutateAsync: vi.fn() }),
-  useDeleteProjectResource: () => ({ mutateAsync: vi.fn() }),
+  useUpdateProjectResource: () => ({ mutateAsync: updateResource }),
+  useDeleteProjectResource: () => ({ mutateAsync: deleteResource }),
 }));
 
 vi.mock("@multica/core/config", () => ({
@@ -59,19 +69,122 @@ vi.mock("../../platform/local-directory", () => ({
   isDesktopShell: () => true,
   pickDirectory: vi.fn(),
   validateLocalDirectory: vi.fn(),
+  canOpenLocalDirectory: () => platform.supported,
+  openLocalDirectory: vi.fn(),
 }));
 vi.mock("../../platform/use-local-daemon-status", () => ({
-  useLocalDaemonStatus: () => ({ daemonId: "daemon-1", deviceName: "MacBook", running: true }),
+  useLocalDaemonStatus: () => ({ ...platform, deviceName: "MacBook" }),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import { pickDirectory, validateLocalDirectory } from "../../platform/local-directory";
+import { openLocalDirectory, pickDirectory, validateLocalDirectory } from "../../platform/local-directory";
 
 import { ProjectResourcesSection } from "./project-resources-section";
 
 const strings = en.resources;
 
 describe("ProjectResourcesSection — local directory row", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resources = [RESOURCE as ProjectResource];
+    Object.assign(platform, { supported: true, daemonId: "daemon-1", running: true, externallyManaged: false });
+    vi.mocked(openLocalDirectory).mockResolvedValue({ ok: true });
+  });
+
+  async function openMenu(name = "Game Client") {
+    fireEvent.contextMenu(screen.getByLabelText(name));
+    return screen.findByRole("menuitem", { name: strings.local_open_directory });
+  }
+
+  it("shows an unnamed directory's basename while opening its full path", async () => {
+    resources = [{ ...RESOURCE, label: null, resource_ref: { local_path: "/work/中文 client/", daemon_id: "daemon-1" } } as ProjectResource];
+    renderWithI18n(<ProjectResourcesSection projectId="p1" />);
+    expect(screen.getByText("中文 client")).toBeInTheDocument();
+    await userEvent.hover(screen.getByText("中文 client"));
+    expect(await screen.findByText("/work/中文 client/")).toBeVisible();
+    await userEvent.unhover(screen.getByText("中文 client"));
+    fireEvent.click(await openMenu("中文 client"));
+    await waitFor(() => expect(openLocalDirectory).toHaveBeenCalledWith("/work/中文 client/", "daemon-1"));
+  });
+
+  it("opens the original resource directory and closes the context menu", async () => {
+    renderWithI18n(<ProjectResourcesSection projectId="p1" />);
+    fireEvent.click(await openMenu());
+    await waitFor(() => expect(openLocalDirectory).toHaveBeenCalledWith(RESOURCE.resource_ref.local_path, "daemon-1"));
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    expect(createResource).not.toHaveBeenCalled();
+  });
+
+  it("keeps same-named directories bound to their own full paths", async () => {
+    resources = ["/frontend/client/", "/backend/client/"].map((local_path, index) => ({
+      ...RESOURCE, id: `res-${index}`, label: null,
+      resource_ref: { local_path, daemon_id: "daemon-1" },
+    } as ProjectResource));
+    renderWithI18n(<ProjectResourcesSection projectId="p1" />);
+    const rows = screen.getAllByLabelText("client");
+    expect(rows).toHaveLength(2);
+    for (const [index, row] of rows.entries()) {
+      fireEvent.contextMenu(row);
+      fireEvent.click(await screen.findByRole("menuitem", { name: strings.local_open_directory }));
+      await waitFor(() => expect(openLocalDirectory).toHaveBeenNthCalledWith(index + 1, index ? "/backend/client/" : "/frontend/client/", "daemon-1"));
+      await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    }
+  });
+
+  it("still edits execution mode without changing the original resource binding", async () => {
+    renderWithI18n(<ProjectResourcesSection projectId="p1" />);
+    fireEvent.click(screen.getByRole("button", { name: strings.mode_edit_tooltip }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: new RegExp(strings.mode_in_place_title) }));
+    fireEvent.click(screen.getByRole("button", { name: strings.mode_save }));
+    await waitFor(() => expect(updateResource).toHaveBeenCalledWith({
+      resourceId: RESOURCE.id,
+      data: { resource_ref: { ...RESOURCE.resource_ref, execution_mode: "in_place" } },
+    }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("still removes the resource using its ID", async () => {
+    renderWithI18n(<ProjectResourcesSection projectId="p1" />);
+    fireEvent.click(screen.getByRole("button", { name: strings.remove_tooltip }));
+    await waitFor(() => expect(deleteResource).toHaveBeenCalledWith(RESOURCE.id));
+    expect(openLocalDirectory).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["web or older desktop", { supported: false }, strings.local_open_unsupported],
+    ["another machine", { daemonId: "other" }, strings.local_other_machine_tooltip],
+    ["unresolved daemon", { daemonId: null }, strings.toast_local_daemon_not_running],
+    ["stopped daemon", { running: false }, strings.toast_local_daemon_not_running],
+    ["forwarded daemon", { externallyManaged: true }, strings.local_other_machine_tooltip],
+  ])("disables opening on %s and explains why", async (_name, state, reason) => {
+    Object.assign(platform, state);
+    renderWithI18n(<ProjectResourcesSection projectId="p1" />);
+    const item = await openMenu();
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText(reason)).toBeInTheDocument();
+    fireEvent.click(item);
+    expect(openLocalDirectory).not.toHaveBeenCalled();
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: strings.mode_edit_tooltip })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: strings.remove_tooltip })).toBeInTheDocument();
+  });
+
+  it("shows a missing-directory failure", async () => {
+    vi.mocked(openLocalDirectory).mockResolvedValue({ ok: false, reason: "not_found" });
+    renderWithI18n(<ProjectResourcesSection projectId="p1" />);
+    fireEvent.click(await openMenu());
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(strings.toast_local_open_failed, { description: strings.local_validate_not_found }));
+  });
+
+  it("shows bridge errors instead of silently succeeding", async () => {
+    vi.mocked(openLocalDirectory).mockRejectedValue(new Error("IPC disconnected"));
+    renderWithI18n(<ProjectResourcesSection projectId="p1" />);
+    fireEvent.click(await openMenu());
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(strings.toast_local_open_failed, { description: "IPC disconnected" }));
+  });
+
   it("已有一个本地仓库时还能继续添加另一个仓库", async () => {
     vi.mocked(pickDirectory).mockResolvedValue({ ok: true, path: "/work/backend", basename: "backend" });
     vi.mocked(validateLocalDirectory).mockResolvedValue({ ok: true, is_git_repo: true });

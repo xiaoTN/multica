@@ -221,6 +221,9 @@ const desktopAPI = {
   /** Validate that a path is an existing readable+writable directory. */
   validateLocalDirectory: (path: string) =>
     ipcRenderer.invoke("local-directory:validate", path),
+  /** Open an existing directory on this desktop's daemon host. */
+  openLocalDirectory: (path: string, daemonId: string) =>
+    ipcRenderer.invoke("local-directory:open", path, daemonId),
   /** Listen for Cmd/Ctrl+W tab-close requests from the main process.
    *  The renderer should close the active tab; if it was the last tab,
    *  call `closeWindow()` to dismiss the window. Returns an unsubscribe fn. */

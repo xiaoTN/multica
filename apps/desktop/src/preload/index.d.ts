@@ -17,6 +17,7 @@ import type {
   LocalRuntimeProbe,
 } from "../shared/daemon-types";
 import type { TabSelectionShortcutKey } from "../shared/main-renderer-messages";
+import type { OpenLocalDirectoryResult } from "../shared/local-directory";
 
 interface DesktopAPI {
   /** App version + normalized OS, captured synchronously at preload time. */
@@ -87,6 +88,7 @@ interface DesktopAPI {
   }>;
   pickFilePaths: (multiple: boolean) => Promise<string[]>;
   getPathForFile: (file: File) => string;
+  openLocalDirectory: (path: string, daemonId: string) => Promise<OpenLocalDirectoryResult>;
   /** Validate that a path is an existing readable+writable directory.
    *  Mirrors the daemon's runtime check so the user sees errors before submit. */
   validateLocalDirectory: (

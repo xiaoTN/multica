@@ -10,25 +10,103 @@ const mocks = vi.hoisted(() => ({
   fromWebContents: vi.fn(),
   stat: vi.fn(),
   access: vi.fn(),
+  openPath: vi.fn(),
+  isAuthorizedSender: vi.fn(),
+  getDaemonStatus: vi.fn(),
 }));
 vi.mock("electron", () => ({
   ipcMain: { handle: mocks.handle },
   dialog: { showOpenDialog: mocks.showOpenDialog },
   BrowserWindow: { fromWebContents: mocks.fromWebContents },
+  shell: { openPath: mocks.openPath },
 }));
 vi.mock("fs/promises", () => ({ stat: mocks.stat, access: mocks.access }));
 
-const event = { sender: {} } as IpcMainInvokeEvent;
-function invoke(channel: string, path?: string | boolean) {
+const frame = {};
+const event = { sender: { mainFrame: frame }, senderFrame: frame } as unknown as IpcMainInvokeEvent;
+function invoke(channel: string, path?: unknown, daemonId?: string, source = event) {
   const handler = mocks.handle.mock.calls.find(([name]) => name === channel)?.[1];
   if (!handler) throw new Error(`Missing handler: ${channel}`);
-  return handler(event, path);
+  return handler(source, path, daemonId);
 }
 
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.fromWebContents.mockReturnValue({});
-  setupLocalDirectory(() => null);
+  mocks.isAuthorizedSender.mockReturnValue(true);
+  mocks.getDaemonStatus.mockResolvedValue({ state: "running", daemonId: "d1" });
+  setupLocalDirectory(() => null, mocks);
+});
+
+describe("local directory opening IPC", () => {
+  it.each([null, {}])("rejects detached frames and embedded documents: %j", async (senderFrame) => {
+    const source = { ...event, senderFrame } as IpcMainInvokeEvent;
+    await expect(invoke("local-directory:open", "/projects/demo", "d1", source)).resolves.toEqual({ ok: false, reason: "unavailable" });
+    expect(mocks.getDaemonStatus).not.toHaveBeenCalled();
+    expect(mocks.openPath).not.toHaveBeenCalled();
+  });
+
+  it("hands the original path to the system as data and only requires read access", async () => {
+    const path = "/projects/中文 repo $(touch ignored)/";
+    mocks.stat.mockResolvedValue({ isDirectory: () => true });
+    mocks.access.mockResolvedValue(undefined);
+    mocks.openPath.mockResolvedValue("");
+    await expect(invoke("local-directory:open", path, "d1")).resolves.toEqual({ ok: true });
+    expect(mocks.openPath).toHaveBeenCalledWith(path);
+    expect(mocks.access).toHaveBeenCalledExactlyOnceWith(path, constants.R_OK);
+  });
+
+  it("rejects unauthorized senders before accessing the daemon or filesystem", async () => {
+    mocks.isAuthorizedSender.mockReturnValue(false);
+    await expect(invoke("local-directory:open", "/projects/demo", "d1")).resolves.toEqual({ ok: false, reason: "unavailable" });
+    expect(mocks.getDaemonStatus).not.toHaveBeenCalled();
+    expect(mocks.stat).not.toHaveBeenCalled();
+    expect(mocks.openPath).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { state: "running", daemonId: "another-machine" },
+    { state: "stopped" },
+    { state: "running" },
+    { state: "running", daemonId: "d1", externallyManaged: true },
+  ])("does not interpret an unavailable daemon's path on the desktop: %j", async (status) => {
+    mocks.getDaemonStatus.mockResolvedValue(status);
+    await expect(invoke("local-directory:open", "/projects/demo", "d1")).resolves.toEqual({ ok: false, reason: "unavailable" });
+    expect(mocks.stat).not.toHaveBeenCalled();
+    expect(mocks.openPath).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, 42, "", "relative/path", "file:///projects/demo", "/projects/\0demo"])("rejects invalid input %j", async (path) => {
+    await expect(invoke("local-directory:open", path, "d1")).resolves.toEqual({ ok: false, reason: "not_absolute" });
+    expect(mocks.openPath).not.toHaveBeenCalled();
+  });
+
+  it("reports a missing directory without opening or creating anything", async () => {
+    mocks.stat.mockRejectedValue(Object.assign(new Error("missing"), { code: "ENOENT" }));
+    await expect(invoke("local-directory:open", "/projects/missing", "d1")).resolves.toEqual({ ok: false, reason: "not_found" });
+    expect(mocks.openPath).not.toHaveBeenCalled();
+  });
+
+  it("rejects files instead of launching them", async () => {
+    mocks.stat.mockResolvedValue({ isDirectory: () => false });
+    await expect(invoke("local-directory:open", "/projects/file", "d1")).resolves.toEqual({ ok: false, reason: "not_a_directory" });
+    expect(mocks.openPath).not.toHaveBeenCalled();
+  });
+
+  it("reports unreadable directories", async () => {
+    mocks.stat.mockResolvedValue({ isDirectory: () => true });
+    mocks.access.mockRejectedValue(new Error("denied"));
+    await expect(invoke("local-directory:open", "/projects/demo", "d1")).resolves.toEqual({ ok: false, reason: "not_readable" });
+    expect(mocks.openPath).not.toHaveBeenCalled();
+  });
+
+  it.each(["message", "rejection"])("reports native open failures via %s", async (failure) => {
+    mocks.stat.mockResolvedValue({ isDirectory: () => true });
+    mocks.access.mockResolvedValue(undefined);
+    if (failure === "message") mocks.openPath.mockResolvedValue("Finder unavailable");
+    else mocks.openPath.mockRejectedValue(new Error("Finder unavailable"));
+    await expect(invoke("local-directory:open", "/projects/demo", "d1")).resolves.toEqual({ ok: false, reason: "error", error: "Finder unavailable" });
+  });
 });
 
 describe("local file path picker IPC", () => {

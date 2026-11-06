@@ -115,7 +115,9 @@ export const useShortcutStore = create<ShortcutState>()(
             return state;
           }
           const next = { ...state.overrides };
-          if (shortcutChordEquals(shortcut, SHORTCUT_ACTION_BY_ID[actionId].defaultShortcut)) {
+          // Form annotations have a contextual Enter default. Keep an explicit
+          // Send choice so that selecting Mod+Enter continues to override it.
+          if (actionId !== "send" && shortcutChordEquals(shortcut, SHORTCUT_ACTION_BY_ID[actionId].defaultShortcut)) {
             delete next[actionId];
           } else {
             next[actionId] = shortcut;

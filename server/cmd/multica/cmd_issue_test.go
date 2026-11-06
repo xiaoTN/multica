@@ -5374,6 +5374,7 @@ func TestIsTerminalChildIssue(t *testing.T) {
 // newIssueRunsTestCmd mirrors the real flag set registered on issueRunsCmd.
 func newIssueRunsTestCmd(t *testing.T, output string) *cobra.Command {
 	t.Helper()
+	t.Setenv("MULTICA_TOKEN", "mat_test-token")
 	cmd := &cobra.Command{Use: "runs"}
 	cmd.Flags().String("output", output, "")
 	cmd.Flags().Bool("full-id", false, "")

@@ -1,7 +1,7 @@
 {
   "name": "@multica/desktop",
   "productName": "Agent团队协作",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "private": true,
   "description": "Agent团队协作桌面应用",
   "homepage": "https://multica.ai",

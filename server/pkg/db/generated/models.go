@@ -100,6 +100,7 @@ type AgentRuntime struct {
 	CustomName         pgtype.Text        `json:"custom_name"`
 	SharedWith         []pgtype.UUID      `json:"shared_with"`
 	MaxConcurrentTasks pgtype.Int4        `json:"max_concurrent_tasks"`
+	DaemonCapacity     []byte             `json:"daemon_capacity"`
 }
 
 type AgentSkill struct {
@@ -181,6 +182,8 @@ type AgentTaskQueue struct {
 	CancelledByName           pgtype.Text `json:"cancelled_by_name"`
 	IssueSnapshot             []byte      `json:"issue_snapshot"`
 	WorkflowStep              pgtype.Text `json:"workflow_step"`
+	WaitDiagnostic            []byte      `json:"wait_diagnostic"`
+	WaitHistory               []byte      `json:"wait_history"`
 }
 
 type AgentToLabel struct {
@@ -1675,7 +1678,8 @@ type User struct {
 	Language                pgtype.Text        `json:"language"`
 	ProfileDescription      string             `json:"profile_description"`
 	// User-preferred IANA timezone for report rendering (Viewing tz). NULL means "use the browser-detected tz at render time". Affects dashboards, charts, and any "today" label shown to this user. Does not affect data materialisation — all rollups remain in UTC.
-	Timezone pgtype.Text `json:"timezone"`
+	Timezone            pgtype.Text `json:"timezone"`
+	WhatsNewSeenVersion pgtype.Text `json:"whats_new_seen_version"`
 }
 
 type UserComposioConnection struct {

@@ -327,6 +327,7 @@ export function ChatPage() {
         <ChatMessageList
           ref={messageListRef}
           annotationDraftKey={c.activeSessionId ?? undefined}
+          onAnnotationConfirmed={c.requestInputFocus}
           onRevealed={() => setRevealedSessionId(c.activeSessionId)}
           key={c.activeSessionId}
           messages={c.messages}
@@ -382,6 +383,7 @@ export function ChatPage() {
       <ChatQueue
         tasks={queuedTasks}
         headStatus={c.pendingTask?.status}
+        canSteer={c.pendingTask?.can_steer}
         onSendNow={c.handleSendQueuedTaskNow}
         sendNowDisabled={c.isAgentAccessRevoked}
         onEdit={c.handleEditQueuedTask}
@@ -466,7 +468,7 @@ export function ChatPage() {
   const hasTarget = !!c.activeSessionId || composingNew;
   return (
     <div className="flex min-h-0 flex-1">
-      <ListColumn collapsed={listCollapsed}>
+      <ListColumn collapsed={listCollapsed} width="list">
         {listHeader}
         <div className="flex-1 min-h-0 overflow-y-auto">{listBody}</div>
       </ListColumn>

@@ -12,6 +12,7 @@ import {
 import type { ChatQueuedTask } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { IconButton } from "@multica/ui/components/common/icon-button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@multica/ui/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,7 @@ import { CHAT_COLUMN, CHAT_GUTTER } from "./chat-column";
 interface ChatQueueProps {
   tasks: ChatQueuedTask[];
   headStatus: string | undefined;
+  canSteer?: boolean;
   onSendNow: (taskId: string) => Promise<void> | void;
   /** Blocks "send now" independently of the head task's status — used when the
    *  caller may no longer invoke the agent, since steering a queued task
@@ -39,6 +41,7 @@ interface ChatQueueProps {
 export function ChatQueue({
   tasks,
   headStatus,
+  canSteer,
   onSendNow,
   sendNowDisabled = false,
   onEdit,
@@ -51,16 +54,17 @@ export function ChatQueue({
     headStatus === "dispatched" ||
     headStatus === "running" ||
     headStatus === "waiting_local_directory";
-  const canSendNow = !sendNowDisabled && dispatchableHead;
-  // The two blocked states need different copy: "wait for the reply to start"
-  // is actionable, "you cannot run this agent" is not — telling a user to wait
-  // for something waiting cannot fix is the bug (MUL-6380).
+  const unsupported = headStatus === "running" && canSteer === false;
+  const canSendNow = !sendNowDisabled && dispatchableHead && !unsupported;
+  // A missing negotiated transport cannot be fixed by waiting for this run.
   const sendNowLabel = t(($) =>
     canSendNow
       ? $.queue.steer
       : sendNowDisabled
         ? $.queue.steer_no_permission
-        : $.queue.steer_unavailable,
+        : unsupported
+          ? $.queue.steer_unsupported
+          : $.queue.steer_unavailable,
   );
 
   if (tasks.length === 0) return null;
@@ -124,26 +128,26 @@ export function ChatQueue({
                     {task.content?.trim() || t(($) => $.queue.fallback)}
                   </span>
                   <div className="flex shrink-0 items-center gap-0.5">
-                    <span
-                      className="shrink-0"
-                      title={sendNowLabel}
-                    >
-                      <Button
-                        variant="ghost"
-                        size="xs"
-                        className="px-1.5 font-normal text-muted-foreground"
-                        disabled={busyAction !== null || !canSendNow}
-                        aria-label={sendNowLabel}
-                        onClick={() => void run(sendNowKey, () => onSendNow(task.task_id))}
-                      >
-                        {busyAction === sendNowKey ? (
-                          <Loader2 className="animate-spin" aria-hidden="true" />
-                        ) : (
-                          <CornerDownRight aria-hidden="true" />
-                        )}
-                        {t(($) => $.queue.steer)}
-                      </Button>
-                    </span>
+                    <Tooltip>
+                      <TooltipTrigger render={<span className="shrink-0" />}>
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          className="px-1.5 font-normal text-muted-foreground"
+                          disabled={busyAction !== null || !canSendNow}
+                          aria-label={sendNowLabel}
+                          onClick={() => void run(sendNowKey, () => onSendNow(task.task_id))}
+                        >
+                          {busyAction === sendNowKey ? (
+                            <Loader2 className="animate-spin" aria-hidden="true" />
+                          ) : (
+                            <CornerDownRight aria-hidden="true" />
+                          )}
+                          {t(($) => $.queue.steer)}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{sendNowLabel}</TooltipContent>
+                    </Tooltip>
                     <IconButton
                       variant="ghost"
                       size="icon-xs"

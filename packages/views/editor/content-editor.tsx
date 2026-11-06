@@ -49,7 +49,7 @@ import { issueIdentifierOptions } from "@multica/core/issues/queries";
 import { workspaceListOptions } from "@multica/core/workspace/queries";
 import { isIssueIdentifier } from "@multica/ui/markdown";
 import type { Attachment } from "@multica/core/types";
-import type { ShortcutActionId } from "@multica/core/shortcuts";
+import type { ShortcutActionId, ShortcutChord } from "@multica/core/shortcuts";
 import {
   parseMarkdownChunked,
   MARKDOWN_CHUNK_THRESHOLD,
@@ -139,6 +139,8 @@ interface ContentEditorBaseProps {
   debounceMs?: number;
   onSubmit?: (actionId?: ShortcutActionId) => void;
   submitActions?: readonly ShortcutActionId[];
+  /** Override the form's send chord; undefined uses the configured shortcut. */
+  submitShortcut?: ShortcutChord | null;
   onBlur?: () => void;
   /**
    * Upload transport. `uploadId` is minted by the editor when it inserts the
@@ -374,6 +376,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
       debounceMs = 300,
       onSubmit,
       submitActions,
+      submitShortcut,
       onBlur,
       onUploadFile,
       pasteAsFileThreshold,
@@ -403,6 +406,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     const onUpdateRef = useRef(onUpdate);
     const onSubmitRef = useRef(onSubmit);
     const submitActionsRef = useRef(submitActions);
+    const submitShortcutRef = useRef(submitShortcut);
     const onBlurRef = useRef(onBlur);
     const onReadyRef = useRef(onReady);
     const onUploadingChangeRef = useRef(onUploadingChange);
@@ -517,6 +521,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
     onUpdateRef.current = onUpdate;
     onSubmitRef.current = onSubmit;
     submitActionsRef.current = submitActions;
+    submitShortcutRef.current = submitShortcut;
     onBlurRef.current = onBlur;
     onReadyRef.current = onReady;
     onUploadingChangeRef.current = onUploadingChange;
@@ -620,6 +625,7 @@ const ContentEditor = forwardRef<ContentEditorRef, ContentEditorProps>(
         queryClient,
         onSubmitRef,
         submitActionsRef,
+        submitShortcutRef,
         onUploadFileRef,
         onDirectoryDropRef,
         pasteAsFileThresholdRef,

@@ -1397,7 +1397,7 @@ describe("IssueDetail (shared)", () => {
     expect(container.querySelector(`[data-run-id="${taskId}"]`)).toBeNull();
     mockApiObj.listTimeline.mockResolvedValue([root]);
     act(() => client.setQueryData(issueKeys.timeline("issue-1"), [root]));
-    await screen.findByText("Waiting for an available agent.");
+    await screen.findByText("Waiting reason not reported");
     const userBlock = container.querySelector(`#comment-body-${root.id}`)!.parentElement!;
     const agentBlock = container.querySelector(`[data-run-comment-id="${taskId}"]`)!;
     expect(agentBlock).not.toBeNull();
@@ -1463,7 +1463,7 @@ describe("IssueDetail (shared)", () => {
     mockApiObj.listTasksByIssue.mockResolvedValue([task]);
     const { container } = renderIssueDetail();
 
-    await screen.findByText("Waiting for an available agent.");
+    await screen.findByText("Waiting reason not reported");
     const run = container.querySelector(`[data-run-comment-id="${task.id}"]`)!;
     expect(run).not.toBeNull();
     const latestComment = container.querySelector(`#comment-${latest.id}`);
@@ -1538,7 +1538,7 @@ describe("IssueDetail (shared)", () => {
         </QueryClientProvider>
       </I18nProvider>,
     );
-    await screen.findByText("Waiting for an available agent.");
+    await screen.findByText("Waiting reason not reported");
     expect(container.querySelector(`[data-run-comment-id="${task.id}"]`)).not.toBeNull();
     const assignmentSlot = container.querySelector(`[data-run-slot-id="${task.id}"]`);
     const running: AgentTask = { ...task, status: "running", started_at: task.created_at };
@@ -1601,7 +1601,7 @@ describe("IssueDetail (shared)", () => {
     expect(secondRow!.nextElementSibling).toBe(slots[1]);
     expect(thirdRow!.nextElementSibling).toBe(slots[2]);
     fireEvent.click(within(slots[0] as HTMLElement).getByRole("button", { name: /View activity/ }));
-    await within(slots[0] as HTMLElement).findByText("No activity recorded yet.");
+    expect(within(slots[0] as HTMLElement).getByText("Reason code")).toBeInTheDocument();
     for (const index of [0, 1]) {
       const reply: TimelineEntry = { ...mockTimeline[1]!, id: `answer-${index}`, parent_id: index === 0 ? null : root.id,
         source_task_id: tasks[index]!.id, content: `Answer ${index}`, created_at: `2026-01-16T00:01:0${index}Z` };
@@ -1627,7 +1627,7 @@ describe("IssueDetail (shared)", () => {
     expect(slots[2]!.nextElementSibling).toBe(slots[0]);
     expect(slots[0]!.nextElementSibling).toBe(slots[1]);
     expect(container.querySelector(`[data-run-slot-id="${tasks[2]!.id}"]`)).toBe(slots[2]);
-    expect(within(slots[2] as HTMLElement).getByText("Waiting for an available agent.")).toBeInTheDocument();
+    expect(within(slots[2] as HTMLElement).getByText("Waiting reason not reported")).toBeInTheDocument();
   });
 
   it("keeps a downstream run in the thread after its triggering agent reply is projected there", async () => {
@@ -2511,6 +2511,53 @@ describe("IssueDetail (shared)", () => {
       const reply = document.getElementById("comment-reply-under-root");
       expect(reply).not.toBeNull();
       expect(hasHighlightedCommentBackground(reply)).toBe(false);
+    });
+
+    it("lands on a run that left no comment by its task id", async () => {
+      const taskId = "7c1f3a9e-2b4d-4e8a-9f60-0a1b2c3d4e5f";
+      const task: AgentTask = {
+        id: taskId, agent_id: "agent-1", runtime_id: "runtime-1", issue_id: "issue-1",
+        status: "failed", priority: 0, created_at: "2026-01-18T00:00:00Z",
+        started_at: "2026-01-18T00:00:01Z", dispatched_at: "2026-01-18T00:00:01Z",
+        completed_at: "2026-01-18T00:05:00Z", result: null, error: "go test timed out",
+        delivered_comment_ids: [],
+      };
+      mockApiObj.listTasksByIssue.mockResolvedValue([task]);
+
+      renderIssueDetailWithHighlight(taskId);
+
+      await waitFor(() => {
+        expect(hasHighlightedCommentBackground(document.getElementById(`comment-${taskId}`))).toBe(true);
+      });
+    });
+
+    it.each([
+      ["an open thread", "open"],
+      ["a thread whose root is resolved", "root"],
+      ["a thread a later reply resolved", "reply"],
+    ])("unfolds and lands on a run that left no comment in %s", async (_case, fold) => {
+      const taskId = "7c1f3a9e-2b4d-4e8a-9f60-0a1b2c3d4e5f";
+      const root = { ...mockTimeline[0]!, id: "run-thread-root", parent_id: null,
+        resolved_at: fold === "root" ? "2026-01-19T00:00:00Z" : null };
+      const trigger = { ...mockTimeline[0]!, id: "run-trigger", parent_id: root.id,
+        content: "Please run this check", created_at: "2026-01-18T00:00:00Z" };
+      const resolution = { ...trigger, id: "run-resolution", content: "Resolved",
+        resolved_at: "2026-01-19T00:00:00Z", created_at: "2026-01-19T00:00:00Z" };
+      const task: AgentTask = {
+        id: taskId, agent_id: "agent-1", runtime_id: "runtime-1", issue_id: "issue-1",
+        status: "failed", priority: 0, created_at: "2026-01-18T00:00:00Z",
+        started_at: "2026-01-18T00:00:01Z", dispatched_at: "2026-01-18T00:00:01Z",
+        completed_at: "2026-01-18T00:05:00Z", result: null, error: "go test timed out",
+        trigger_comment_id: trigger.id, delivered_comment_ids: [trigger.id],
+      };
+      mockApiObj.listTimeline.mockResolvedValue([root, trigger, ...(fold === "reply" ? [resolution] : [])]);
+      mockApiObj.listTasksByIssue.mockResolvedValue([task]);
+
+      renderIssueDetailWithHighlight(taskId);
+
+      await waitFor(() => {
+        expect(hasHighlightedCommentBackground(document.getElementById(`comment-${taskId}`))).toBe(true);
+      });
     });
 
     it("still scrolls when the timeline is ready before the issue (regression for inbox click)", async () => {

@@ -7,6 +7,7 @@ import type { AgentAvailability } from "@multica/core/agents";
 import type { ChatPendingTask, TaskMessagePayload } from "@multica/core/types";
 import { formatElapsedSecs } from "../lib/format";
 import { useT } from "../../i18n";
+import { RunWaitDetails, useRunWaitLabel } from "../../common/run-wait";
 
 interface Props {
   /** Server-authoritative pending-task snapshot (`created_at` anchors the timer). */
@@ -206,8 +207,10 @@ export function TaskStatusPill({
     availability,
     status === "waiting_local_directory" ? pendingTask.wait_reason : undefined,
   );
+  const waitLabel = useRunWaitLabel(pendingTask.wait_diagnostic, status);
 
   return (
+    <div className="min-w-0 space-y-1">
     <div
       className="flex items-center gap-1.5 px-1 text-caption text-muted-foreground"
       aria-live="polite"
@@ -217,10 +220,12 @@ export function TaskStatusPill({
       )}
       <span className="truncate">
         <ShimmerText active={!stage.static}>
-          {stage.label}
+          {waitLabel ?? stage.label}
         </ShimmerText>
         <span className="opacity-70 tabular-nums"> · {formatElapsedSecs(elapsedSecs)}</span>
       </span>
+    </div>
+    {waitLabel && <RunWaitDetails diagnostic={pendingTask.wait_diagnostic} />}
     </div>
   );
 }

@@ -20,7 +20,7 @@
  * not Tailwind HTMLAttributes, to keep a single source of truth.
  */
 import type { RefObject } from "react";
-import type { ShortcutActionId } from "@multica/core/shortcuts";
+import { getShortcut, type ShortcutActionId, type ShortcutChord } from "@multica/core/shortcuts";
 import StarterKit from "@tiptap/starter-kit";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -149,6 +149,7 @@ export interface EditorExtensionsOptions {
   queryClient?: import("@tanstack/react-query").QueryClient;
   onSubmitRef?: RefObject<((actionId?: ShortcutActionId) => void) | undefined>;
   submitActionsRef?: RefObject<readonly ShortcutActionId[] | undefined>;
+  submitShortcutRef?: RefObject<ShortcutChord | null | undefined>;
   onUploadFileRef?: RefObject<
     ((file: File, uploadId: string) => Promise<UploadResult | null>) | undefined
   >;
@@ -312,7 +313,9 @@ export function createEditorExtensions(
       if (!fn) return false;
       fn(actionId);
       return true;
-    }, () => options.submitActionsRef?.current ?? ["send"]),
+    }, () => options.submitActionsRef?.current ?? ["send"], (action) =>
+      action === "send" && options.submitShortcutRef?.current !== undefined
+        ? options.submitShortcutRef.current : getShortcut(action)),
     createBlurShortcutExtension(),
     createFileUploadExtension(options.onUploadFileRef!, options.pasteAsFileThresholdRef, options.onDirectoryDropRef),
   ];

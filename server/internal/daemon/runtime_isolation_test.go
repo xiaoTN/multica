@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -274,6 +275,14 @@ func testRunBatchPollerTaskExitWakeup(t *testing.T, maxConcurrent int, releaseDe
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/api/daemon/tasks/claim"):
+			var body struct {
+				MaxTasks int `json:"max_tasks"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body.MaxTasks == 0 {
+				w.Write([]byte(`{"tasks":[]}`))
+				return
+			}
 			claimCalls.Add(1)
 			switch {
 			case !firstCompleted.Load():

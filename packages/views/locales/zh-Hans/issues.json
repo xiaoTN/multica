@@ -3,7 +3,7 @@
     "label": "{{name}} 的运行",
     "stop": "停止",
     "stopping": "正在停止...",
-    "queued": "等待可用的智能体。",
+    "queued": "等待原因尚未上报",
     "starting": "正在准备智能体会话。",
     "waiting_directory": "等待其他运行释放工作目录。",
     "thinking": "思考中",
@@ -527,7 +527,6 @@
     "agents_group": "智能体",
     "mark_done_tooltip": "标记为已完成",
     "archive_tooltip": "归档",
-    "restore_to_inbox_tooltip": "恢复到收件箱",
     "pin_tooltip": "固定到侧边栏",
     "unpin_tooltip": "从侧边栏取消固定",
     "quick_jump_label": "快捷跳转",
@@ -926,6 +925,7 @@
     "open_in_new_tab": "在新标签页打开",
     "pin_to_sidebar": "固定到侧边栏",
     "unpin_from_sidebar": "从侧边栏取消固定",
+    "restore_to_inbox": "恢复到收件箱",
     "mark_read": "标为已读",
     "mark_unread": "标为未读",
     "copy_link": "复制链接",
@@ -1754,6 +1754,9 @@
     "save_as_new": "另存为新视图",
     "save_as_new_hint": "「{{name}}」保持不变",
     "save_as_view": "保存为视图",
+    "save_view": "保存视图",
+    "add_filter": "添加筛选",
+    "setup_hint": "这个视图还没有条件，目前显示全部任务",
     "set_by_view": "由此视图设定",
     "new_issue": "新建任务",
     "unavailable": "此视图已不可用",
@@ -1780,5 +1783,52 @@
       "empty_title": "还没有保存的视图",
       "empty_description": "在任务列表里调好筛选和显示方式，然后另存为视图。"
     }
+  },
+  "run_wait": {
+    "details": "等待详情",
+    "phase": "阶段",
+    "scope": "作用域",
+    "capacity": "占用 / 上限",
+    "duration": "已等待",
+    "evaluated": "评估时间",
+    "unreported": "尚未上报",
+    "blocker": "阻塞运行",
+    "reason_code": "原因码",
+    "history": "最近等待变化",
+    "cleared": "等待已解除",
+    "codes": {
+      "agent_concurrency": "该智能体并发已满",
+      "runtime_concurrency": "运行时并发已满",
+      "daemon_capacity": "守护进程执行槽已满",
+      "previous_run": "等待上一条运行结束",
+      "runtime_offline": "运行时离线或心跳已过期",
+      "runtime_unbound": "尚未绑定运行时",
+      "runtime_rebound": "运行时绑定已变更，等待调度处理",
+      "wakeup_inactive": "唤醒规则已失效，等待调度处理",
+      "awaiting_claim": "服务端排队中，阻塞原因尚未上报",
+      "awaiting_daemon": "已分派，等待守护进程确认领取",
+      "preparing_session": "已领取，正在准备智能体会话",
+      "local_directory_busy": "等待本地目录释放",
+      "worktree_snapshot_busy": "等待目录释放以准备工作树快照",
+      "unknown": "等待原因尚未上报",
+      "daemon_updating": "守护进程正在准备更新，暂停领取"
+    },
+    "scopes": {
+      "agent": "智能体",
+      "runtime": "运行时",
+      "daemon": "本机守护进程",
+      "issue_agent": "本任务内的智能体",
+      "chat_session": "聊天会话",
+      "quick_create_agent": "智能体快速创建",
+      "local_directory": "本地目录",
+      "run": "运行"
+    },
+    "phases": {
+      "queued": "服务端排队",
+      "dispatched": "等待守护进程确认领取",
+      "resource_wait": "等待资源",
+      "preparing": "正在准备会话"
+    },
+    "seconds": "{{count}} s"
   }
 }

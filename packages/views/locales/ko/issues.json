@@ -3,7 +3,7 @@
     "label": "{{name}} 실행",
     "stop": "중지",
     "stopping": "중지 중...",
-    "queued": "사용 가능한 에이전트를 기다리고 있습니다.",
+    "queued": "대기 사유가 보고되지 않았습니다",
     "starting": "에이전트 세션을 준비하고 있습니다.",
     "waiting_directory": "다른 실행이 작업 디렉터리를 해제할 때까지 기다리고 있습니다.",
     "thinking": "생각 중",
@@ -529,7 +529,6 @@
     "agents_group": "에이전트",
     "mark_done_tooltip": "완료로 표시",
     "archive_tooltip": "보관",
-    "restore_to_inbox_tooltip": "인박스로 복원",
     "pin_tooltip": "사이드바에 고정",
     "unpin_tooltip": "사이드바 고정 해제",
     "quick_jump_label": "빠른 탐색",
@@ -926,6 +925,7 @@
     "open_in_new_tab": "새 탭에서 열기",
     "pin_to_sidebar": "사이드바에 고정",
     "unpin_from_sidebar": "사이드바 고정 해제",
+    "restore_to_inbox": "인박스로 복원",
     "mark_read": "읽음으로 표시",
     "mark_unread": "읽지 않음으로 표시",
     "copy_link": "링크 복사",
@@ -1754,6 +1754,9 @@
     "save_as_new": "새 뷰로 저장",
     "save_as_new_hint": "「{{name}}」은(는) 그대로 유지됩니다",
     "save_as_view": "뷰로 저장",
+    "save_view": "뷰 저장",
+    "add_filter": "필터 추가",
+    "setup_hint": "아직 조건이 없어 이 뷰에 모든 태스크가 표시됩니다",
     "set_by_view": "이 뷰에서 설정됨",
     "new_issue": "새 태스크",
     "unavailable": "이 뷰는 더 이상 사용할 수 없습니다",
@@ -1780,5 +1783,52 @@
       "empty_title": "아직 저장된 뷰가 없습니다",
       "empty_description": "태스크 목록에서 필터와 표시 방식을 맞춘 뒤 뷰로 저장하세요."
     }
+  },
+  "run_wait": {
+    "details": "대기 세부 정보",
+    "phase": "단계",
+    "scope": "범위",
+    "capacity": "사용 / 한도",
+    "duration": "대기 시간",
+    "evaluated": "평가 시각",
+    "unreported": "보고되지 않음",
+    "blocker": "차단 중인 실행",
+    "reason_code": "사유 코드",
+    "history": "최근 대기 상태 변경",
+    "cleared": "대기가 해제되었습니다",
+    "codes": {
+      "agent_concurrency": "에이전트 동시 실행 한도에 도달했습니다",
+      "runtime_concurrency": "런타임 동시 실행 한도에 도달했습니다",
+      "daemon_capacity": "데몬 실행 슬롯이 모두 사용 중입니다",
+      "previous_run": "이전 실행이 끝나기를 기다리는 중",
+      "runtime_offline": "런타임이 오프라인이거나 하트비트가 만료되었습니다",
+      "runtime_unbound": "런타임이 연결되지 않았습니다",
+      "runtime_rebound": "런타임 연결 변경 후 처리를 기다리는 중",
+      "wakeup_inactive": "비활성 깨우기 규칙의 처리를 기다리는 중",
+      "awaiting_claim": "서버 대기열에 있습니다. 대기 사유가 보고되지 않았습니다",
+      "awaiting_daemon": "할당되었습니다. 데몬 수신 확인을 기다리는 중",
+      "preparing_session": "수신되었습니다. 에이전트 세션을 준비하는 중",
+      "local_directory_busy": "로컬 디렉터리가 해제되기를 기다리는 중",
+      "worktree_snapshot_busy": "워크트리 스냅샷을 위해 디렉터리가 해제되기를 기다리는 중",
+      "unknown": "대기 사유가 보고되지 않았습니다",
+      "daemon_updating": "데몬 업데이트 준비 중입니다. 수신이 일시 중지되었습니다"
+    },
+    "scopes": {
+      "agent": "에이전트",
+      "runtime": "런타임",
+      "daemon": "이 컴퓨터의 데몬",
+      "issue_agent": "이 태스크의 에이전트",
+      "chat_session": "채팅 세션",
+      "quick_create_agent": "에이전트 빠른 생성",
+      "local_directory": "로컬 디렉터리",
+      "run": "실행"
+    },
+    "phases": {
+      "queued": "서버 대기열",
+      "dispatched": "데몬 수신 확인 대기",
+      "resource_wait": "리소스 대기",
+      "preparing": "세션 준비 중"
+    },
+    "seconds": "{{count}} s"
   }
 }

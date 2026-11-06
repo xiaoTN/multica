@@ -57,7 +57,6 @@ import type {
   IssuePullRequestsResponse,
   InboxItem,
   InboxWorkspaceUnread,
-  MarkIssueInboxReadResult,
   IssueUnread,
   Label,
   MemberWithUser,
@@ -2061,7 +2060,21 @@ const TaskUsageSchema = z.object({
   credits_micros: z.number().optional().catch(undefined),
 }).loose();
 
+export const RunWaitDiagnosticSchema = z.object({
+  code: z.string(),
+  phase: z.string(),
+  scope: z.string(),
+  occupied: z.number().int().nonnegative().optional(),
+  limit: z.number().int().positive().optional(),
+  blocking_task_id: z.string().uuid().optional().catch(undefined),
+  since: z.string().datetime({ offset: true }).optional().catch(undefined),
+  evaluated_at: z.string().datetime({ offset: true }).optional().catch(undefined),
+  message: z.string().optional(),
+});
+
 export const AgentTaskSchema = z.object({
+  wait_diagnostic: RunWaitDiagnosticSchema.nullish().transform((v) => v ?? undefined).catch(undefined),
+  wait_history: z.array(z.object({ at: z.string().datetime({ offset: true }), status: z.string(), diagnostic: RunWaitDiagnosticSchema.nullable() })).optional().catch(undefined),
   wakeup_id: z.string().optional().catch(undefined),
   cancelled_by_comment_change: z.boolean().optional().catch(undefined),
   cancelled_by: TaskCancellationActorSchema.optional().catch(undefined),
@@ -2265,11 +2278,18 @@ const ChatQueuedTasksSchema = z.array(z.unknown()).transform((tasks) =>
 // fields optional so callers can distinguish an older server from an empty
 // queue. A malformed queue row is ignored without discarding a valid head.
 export const ChatPendingTaskSchema: z.ZodType<ChatPendingTask> = z.object({
+  can_steer: z.boolean().optional().catch(undefined),
+  wait_diagnostic: RunWaitDiagnosticSchema.nullish().transform((v) => v ?? undefined).catch(undefined),
+  wait_reason: z.string().optional().catch(undefined),
   task_id: z.string().optional(),
   status: z.string().optional(),
   created_at: z.string().optional(),
   supports_queue: z.boolean().optional(),
   queued_tasks: ChatQueuedTasksSchema.optional(),
+}).loose();
+
+export const ChatSteerErrorBodySchema = z.object({
+  code: z.string().optional().catch(undefined),
 }).loose();
 
 export const EMPTY_CHAT_PENDING_TASK: ChatPendingTask = {};
@@ -2735,6 +2755,9 @@ export const UserSchema = z.object({
   language: z.string().nullable().default(null),
   profile_description: z.string().default(""),
   timezone: z.string().nullable().default(null),
+  // No default: absence is the "server cannot track" signal. A malformed
+  // value degrades to that state instead of discarding the whole user.
+  whats_new_seen_version: z.string().nullable().optional().catch(undefined),
   created_at: z.string().default(""),
   updated_at: z.string().default(""),
 }).loose();
@@ -2775,13 +2798,6 @@ export const InboxUnreadSummarySchema = z.array(
 
 export const EMPTY_INBOX_UNREAD_SUMMARY: InboxWorkspaceUnread[] = [];
 
-// Rows marked read by `POST /api/inbox/issues/{id}/read`. On a malformed body
-// the count is unknown (null), and callers refresh rather than trust it.
-
-export const MarkIssueInboxReadResultSchema = z.object({ count: z.number() }).loose();
-
-export const UNKNOWN_MARK_ISSUE_INBOX_READ_RESULT: MarkIssueInboxReadResult = { count: null };
-
 // The viewer's unread issues (`/api/issues/unread` GET), behind the sidebar's
 // unread dot. `outcome` stays a string so a future kind still lights the dot;
 // on malformed JSON parseWithFallback returns the empty list, which hides it.
@@ -2794,6 +2810,8 @@ export const IssueUnreadPageSchema = z
           issue_id: z.string(),
           outcome: z.string(),
           agent_id: z.string().nullish().transform((v) => v ?? null),
+          task_id: z.string().nullish().transform((v) => v ?? null),
+          comment_id: z.string().nullish().transform((v) => v ?? null),
           created_at: z.string(),
         })
         .loose(),
@@ -2831,9 +2849,6 @@ export const InboxItemListSchema = z.array(
       body: z.string().nullish(),
       issue_status: z.string().nullish(),
       issue_priority: z.string().nullish(),
-      // An unknown section from a newer server drops to undefined, which
-      // inboxItemSection reads as "action" so nothing is hidden from unread.
-      section: z.enum(["action", "activity"]).optional().catch(undefined),
       read: z.boolean(),
       archived: z.boolean(),
       created_at: z.string(),

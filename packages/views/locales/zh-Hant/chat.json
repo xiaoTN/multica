@@ -13,6 +13,8 @@
     "default": "問 Agent团队协作"
   },
   "input": {
+    "steer_unsupported": "目前的 AI 代理不支援本輪執行中引導，草稿已保留，請選擇本輪結束後傳送。",
+    "steer_target_changed": "目標執行已結束或已切換，草稿已保留。",
     "placeholder_no_agent": "建立一個 AI 代理後才能開始對話",
     "placeholder_archived": "此會話已歸檔",
     "placeholder_archived_agent": "該 AI 代理已歸檔",
@@ -39,12 +41,15 @@
     "steer_queued": "目前伺服器已將訊息排隊，將在新一輪執行中處理。"
   },
   "queue": {
+    "steer_unsupported": "目前的 AI 代理不支援本輪執行中引導，排隊訊息會在本輪結束後傳送。",
+    "steer_target_changed": "目標執行已結束或已切換，正在重新整理佇列。",
+    "steer_message_consumed": "這則訊息已不在佇列中，正在重新整理佇列。",
     "title_other": "{{count}} 條排隊訊息",
     "clear": "全部清空",
     "steer": "引導",
     "steer_unavailable": "當前回覆開始後才能引導",
     "steer_no_permission": "你已沒有執行該 AI 代理的權限",
-    "steer_unavailable_toast": "暫時無法引導，正在重新整理佇列。",
+    "steer_unavailable_toast": "無法引導，正在重新整理佇列。",
     "edit": "編輯排隊訊息",
     "remove": "移除排隊訊息",
     "more": "更多佇列操作",

@@ -11,7 +11,12 @@ import (
 
 func chatSteerFixture(t *testing.T) (string, string, string) {
 	t.Helper()
-	runtimeID := dbfx.Runtime(t, "Chat steer runtime", testutil.Cols{"provider": "codex"})
+	return chatSteerNegotiationFixture(t, "codex", []string{protocol.DaemonCapabilityTaskSupplementV1})
+}
+
+func chatSteerNegotiationFixture(t *testing.T, provider string, capabilities []string) (string, string, string) {
+	t.Helper()
+	runtimeID := dbfx.Runtime(t, "Chat steer runtime", testutil.Cols{"provider": provider})
 	agentID := dbfx.Agent(t, "Chat steer agent", runtimeID)
 	sessionID := createHandlerTestChatSession(t, agentID)
 	generation := time.Now().UTC().Truncate(time.Microsecond)
@@ -20,12 +25,59 @@ func chatSteerFixture(t *testing.T) (string, string, string) {
 		"status": "dispatched", "dispatched_at": generation,
 	})
 	req := withURLParam(newOwnerDaemonRequest(http.MethodPost, "/start", map[string]any{
-		"runtime_id": runtimeID, "dispatched_at": generation.Format(time.RFC3339Nano), "capabilities": []string{protocol.DaemonCapabilityTaskSupplementV1},
+		"runtime_id": runtimeID, "dispatched_at": generation.Format(time.RFC3339Nano), "capabilities": capabilities,
 	}), "taskId", taskID)
 	testutil.Call(t, testHandler.StartTask, req).Want(http.StatusOK)
 	dbfx.Cleanup(t, `DELETE FROM task_supplement_capability WHERE task_id=$1`, taskID)
 	dbfx.Cleanup(t, `DELETE FROM chat_task_supplement WHERE task_id=$1`, taskID)
 	return sessionID, taskID, runtimeID
+}
+
+func TestChatSteerNegotiatedCapability(t *testing.T) {
+	for _, tc := range []struct {
+		name, provider     string
+		offered, supported bool
+	}{
+		{"supported", "codex", true, true}, {"legacy_daemon", "codex", false, false},
+		{"qoder", "qoder", false, false}, {"qoder_cannot_offer_unsupported_transport", "qoder", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			capabilities := []string{}
+			if tc.offered {
+				capabilities = append(capabilities, protocol.DaemonCapabilityTaskSupplementV1)
+			}
+			sessionID, taskID, _ := chatSteerNegotiationFixture(t, tc.provider, capabilities)
+			pendingReq := withChatTestWorkspaceCtx(t, withURLParam(newRequest(http.MethodGet, "/pending", nil), "sessionId", sessionID))
+			var pending PendingChatTaskResponse
+			testutil.Call(t, testHandler.GetPendingChatTask, pendingReq).Want(http.StatusOK).JSON(&pending)
+			if pending.CanSteer == nil || *pending.CanSteer != tc.supported || pending.TaskID != taskID {
+				t.Fatalf("pending = %+v", pending)
+			}
+			if tc.supported {
+				return
+			}
+			var queued SendChatMessageResponse
+			sendChatAddition(t, sessionID, taskID, "queue").Want(http.StatusCreated).JSON(&queued)
+			var refusal struct {
+				Code string `json:"code"`
+			}
+			req := withChatTestWorkspaceCtx(t, withURLParams(newRequest(http.MethodPost, "/steer", map[string]any{"expected_task_id": taskID}), "sessionId", sessionID, "taskId", queued.TaskID))
+			testutil.Call(t, testHandler.SteerQueuedChatTask, req).Want(http.StatusConflict).JSON(&refusal)
+			if refusal.Code != "chat_steer_unsupported" {
+				t.Fatalf("queued refusal = %+v", refusal)
+			}
+			sendChatAddition(t, sessionID, taskID, "steer").Want(http.StatusConflict).JSON(&refusal)
+			if refusal.Code != "chat_steer_unsupported" {
+				t.Fatalf("direct refusal = %+v", refusal)
+			}
+			if n := dbfx.Count(t, `SELECT count(*) FROM agent_task_queue WHERE id=$1 AND status='running'`, taskID); n != 1 {
+				t.Fatal("refusal stopped the running task")
+			}
+			if n := dbfx.Count(t, `SELECT count(*) FROM chat_message WHERE id=$1 AND task_id=$2`, queued.MessageID, queued.TaskID); n != 1 {
+				t.Fatal("refusal changed the queued message")
+			}
+		})
+	}
 }
 
 func sendChatAddition(t *testing.T, sessionID, taskID, mode string) *testutil.Response {
@@ -86,7 +138,13 @@ func TestQueuedChatSteerPreservesOriginalPrompt(t *testing.T) {
 		t.Fatal("queued message did not enter the running turn")
 	}
 	retry := withChatTestWorkspaceCtx(t, withURLParams(newRequest(http.MethodPost, "/steer", map[string]any{"expected_task_id": taskID}), "sessionId", sessionID, "taskId", queued.TaskID))
-	testutil.Call(t, testHandler.SteerQueuedChatTask, retry).Want(http.StatusConflict)
+	var refusal struct {
+		Code string `json:"code"`
+	}
+	testutil.Call(t, testHandler.SteerQueuedChatTask, retry).Want(http.StatusConflict).JSON(&refusal)
+	if refusal.Code != "chat_steer_message_consumed" {
+		t.Fatalf("duplicate refusal = %+v", refusal)
+	}
 }
 
 func TestQueuedChatSteerRefusalPreservesMessagesAndQueue(t *testing.T) {
@@ -113,7 +171,14 @@ func TestQueuedChatSteerRefusalPreservesMessagesAndQueue(t *testing.T) {
 				expectedStatus = http.StatusBadRequest
 			}
 			req := withChatTestWorkspaceCtx(t, withURLParams(newRequest(http.MethodPost, "/steer", map[string]any{"expected_task_id": targetID}), "sessionId", sessionID, "taskId", queued.TaskID))
-			testutil.Call(t, testHandler.SteerQueuedChatTask, req).Want(expectedStatus)
+			var refusal struct {
+				Code string `json:"code"`
+			}
+			testutil.Call(t, testHandler.SteerQueuedChatTask, req).Want(expectedStatus).JSON(&refusal)
+			wantCode := map[string]string{"unsupported": "chat_steer_unsupported", "completed": "chat_steer_target_changed", "already_claimed": "chat_steer_message_consumed", "another_session": "chat_steer_message_consumed", "attachment": "chat_steer_unavailable"}[cause]
+			if refusal.Code != wantCode {
+				t.Fatalf("refusal code = %q, want %q", refusal.Code, wantCode)
+			}
 			if n := dbfx.Count(t, `SELECT count(*) FROM chat_message WHERE id=$1 AND task_id=$2`, queued.MessageID, queued.TaskID); n != 1 {
 				t.Fatal("refused input changed")
 			}
@@ -166,7 +231,17 @@ func TestChatSteerRefusesUnavailableExactTurnWithoutQueueing(t *testing.T) {
 			case "another_session":
 				dbfx.Exec(t, `UPDATE agent_task_queue SET chat_session_id=NULL WHERE id=$1`, taskID)
 			}
-			sendChatAddition(t, sessionID, taskID, "steer").Want(http.StatusConflict)
+			var refusal struct {
+				Code string `json:"code"`
+			}
+			sendChatAddition(t, sessionID, taskID, "steer").Want(http.StatusConflict).JSON(&refusal)
+			wantCode := "chat_steer_target_changed"
+			if cause == "unsupported" {
+				wantCode = "chat_steer_unsupported"
+			}
+			if refusal.Code != wantCode {
+				t.Fatalf("refusal code = %q, want %q", refusal.Code, wantCode)
+			}
 			if count := dbfx.Count(t, `SELECT count(*) FROM chat_message WHERE chat_session_id=$1 AND role='user'`, sessionID); count != 0 {
 				t.Fatalf("refused steer persisted %d messages", count)
 			}

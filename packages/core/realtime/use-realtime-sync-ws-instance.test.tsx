@@ -418,12 +418,14 @@ describe("useRealtimeSync — queued chat promotion", () => {
       .mocked(ws.on)
       .mock.calls.find(([event]) => event === "task:dispatch")?.[1];
     expect(dispatch).toBeDefined();
+    qc.setQueryData(chatKeys.pendingTask("session-1"), { task_id: "task-follow-up", status: "queued" });
 
     invalidate.mockClear();
     (dispatch as (payload: unknown) => void)({
       task_id: "task-follow-up",
       chat_session_id: "session-1",
     });
+    expect(qc.getQueryData(chatKeys.pendingTask("session-1"))).toMatchObject({status:"dispatched"});
 
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: chatKeys.messages("session-1"),

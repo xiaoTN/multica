@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api, ApiError } from "@multica/core/api";
+import { api, ApiError, chatSteerErrorCode } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { chatKeys } from "@multica/core/chat/queries";
 import { removePendingChatTask } from "@multica/core/chat/pending";
@@ -192,7 +192,10 @@ export function useChatTaskActions(
       await qc.cancelQueries({ queryKey: pendingKey });
       const pendingSnapshot = qc.getQueryData<ChatPendingTask>(pendingKey);
       try {
-        if (!pendingSnapshot?.task_id) throw new Error("no current run");
+        if (!pendingSnapshot?.task_id) {
+          toast.error(t(($) => $.queue.steer_target_changed));
+          return;
+        }
         await api.steerQueuedChatTask(activeSessionId, taskId, pendingSnapshot.task_id);
       } catch (err) {
         apiLogger.warn("sendQueuedTaskNow.error", {
@@ -200,8 +203,12 @@ export function useChatTaskActions(
           sessionId: activeSessionId,
           err,
         });
+        const code = chatSteerErrorCode(err);
         toast.error(
-          err instanceof ApiError && err.status === 409
+          code === "chat_steer_unsupported" ? t(($) => $.queue.steer_unsupported)
+          : code === "chat_steer_target_changed" ? t(($) => $.queue.steer_target_changed)
+          : code === "chat_steer_message_consumed" ? t(($) => $.queue.steer_message_consumed)
+          : err instanceof ApiError && err.status === 409
             ? t(($) => $.queue.steer_unavailable_toast)
             : t(($) => $.queue.action_failed_toast),
         );

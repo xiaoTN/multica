@@ -168,6 +168,7 @@ export function pendingChatTaskOptions(sessionId: string) {
     queryFn: () => api.getPendingChatTask(sessionId),
     enabled: !!sessionId,
     staleTime: Infinity,
+    refetchInterval: (query) => ["queued", "dispatched", "waiting_local_directory"].includes(query.state.data?.status ?? "") ? 15_000 : false,
   });
 }
 

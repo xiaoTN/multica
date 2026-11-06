@@ -13,6 +13,8 @@
     "default": "问 Agent团队协作"
   },
   "input": {
+    "steer_unsupported": "当前智能体不支持本轮运行中引导，草稿已保留，请选择本轮结束后发送。",
+    "steer_target_changed": "目标运行已结束或已切换，草稿已保留。",
     "placeholder_no_agent": "创建一个智能体后才能开始对话",
     "placeholder_archived": "此会话已归档",
     "placeholder_archived_agent": "该智能体已归档",
@@ -39,12 +41,15 @@
     "steer_queued": "当前服务器已将消息排队，将在新一轮运行中处理。"
   },
   "queue": {
+    "steer_unsupported": "当前智能体不支持本轮运行中引导，排队消息会在本轮结束后发送。",
+    "steer_target_changed": "目标运行已结束或已切换，正在刷新队列。",
+    "steer_message_consumed": "这条消息已不在队列中，正在刷新队列。",
     "title_other": "{{count}} 条排队消息",
     "clear": "全部清空",
     "steer": "引导",
     "steer_unavailable": "当前回复开始后才能引导",
     "steer_no_permission": "你已没有运行该智能体的权限",
-    "steer_unavailable_toast": "暂时无法引导，正在刷新队列。",
+    "steer_unavailable_toast": "无法引导，正在刷新队列。",
     "edit": "编辑排队消息",
     "remove": "移除排队消息",
     "more": "更多队列操作",

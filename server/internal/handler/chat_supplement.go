@@ -14,6 +14,24 @@ import (
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
+func writeChatSteerError(w http.ResponseWriter, err error) bool {
+	code := ""
+	switch {
+	case errors.Is(err, service.ErrChatSteerUnsupported):
+		code = "chat_steer_unsupported"
+	case errors.Is(err, service.ErrChatSteerTargetChanged), errors.Is(err, service.ErrChatSessionArchived), errors.Is(err, service.ErrChatTaskAgentArchived):
+		code = "chat_steer_target_changed"
+	case errors.Is(err, service.ErrChatSteerMessageConsumed):
+		code = "chat_steer_message_consumed"
+	case errors.Is(err, service.ErrChatSteerUnavailable):
+		code = "chat_steer_unavailable"
+	default:
+		return false
+	}
+	writeErrorCode(w, http.StatusConflict, code, err.Error())
+	return true
+}
+
 func (h *Handler) SteerQueuedChatTask(w http.ResponseWriter, r *http.Request) {
 	userID, ok := requireUserID(w, r)
 	if !ok {
@@ -50,9 +68,7 @@ func (h *Handler) SteerQueuedChatTask(w http.ResponseWriter, r *http.Request) {
 	}
 	sent, err := h.TaskService.SteerQueuedChatTask(r.Context(), session, queuedID, targetID)
 	if err != nil {
-		if errors.Is(err, service.ErrChatSteerUnavailable) || errors.Is(err, service.ErrChatSessionArchived) || errors.Is(err, service.ErrChatTaskAgentArchived) {
-			writeError(w, http.StatusConflict, "queued message cannot be added to this run")
-		} else {
+		if !writeChatSteerError(w, err) {
 			writeError(w, http.StatusInternalServerError, "failed to steer queued message")
 		}
 		return

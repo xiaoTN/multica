@@ -525,6 +525,14 @@ func TestRunBatchPollerReleasesSlotAfterTerminalRetryExhaustion(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case strings.HasSuffix(req.URL.Path, "/api/daemon/tasks/claim"):
+			var claim struct {
+				MaxTasks int `json:"max_tasks"`
+			}
+			_ = json.NewDecoder(req.Body).Decode(&claim)
+			if claim.MaxTasks == 0 {
+				_, _ = w.Write([]byte(`{"tasks":[]}`))
+				return
+			}
 			switch {
 			case completeAttempts.Load() == 0:
 				_, _ = w.Write([]byte(`{"tasks":[{"id":"t1","runtime_id":"rt-1","issue_id":"i1"}]}`))

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { pendingChatTaskOptions } from "@multica/core/chat/queries";
-import { api, ApiError } from "@multica/core/api";
+import { api, ApiError, chatSteerErrorCode } from "@multica/core/api";
 import { useCommentComposerStore, type RunningAgentReply } from "@multica/core/issues/stores/comment-composer-store";
 import { toast } from "sonner";
 import { useT } from "../../i18n";
@@ -40,7 +40,10 @@ export function useChatSend(sessionId: string | null) {
       return result;
     } catch (err) {
       if (targetTaskId && mode === "steer" && err instanceof ApiError && err.status === 409) {
-        toast.error(t(($) => $.input.steer_unavailable));
+        const code = chatSteerErrorCode(err);
+        toast.error(code === "chat_steer_unsupported" ? t(($) => $.input.steer_unsupported)
+          : code === "chat_steer_target_changed" ? t(($) => $.input.steer_target_changed)
+          : t(($) => $.input.steer_unavailable));
         return null;
       }
       throw err;

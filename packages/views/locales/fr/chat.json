@@ -14,6 +14,8 @@
     "default": "Demander à Agent团队协作"
   },
   "input": {
+    "steer_unsupported": "Cet agent ne prend pas en charge le guidage pendant cette exécution. Votre brouillon est conservé ; choisissez l’envoi après cette exécution.",
+    "steer_target_changed": "L’exécution ciblée est terminée ou a changé. Votre brouillon est conservé.",
     "placeholder_no_agent": "Créez un agent pour commencer à discuter",
     "placeholder_archived": "Cette session est archivée",
     "placeholder_archived_agent": "Cet agent a été archivé",
@@ -40,6 +42,9 @@
     "steer_queued": "Ce serveur a mis le message en file pour une nouvelle exécution."
   },
   "queue": {
+    "steer_unsupported": "Cet agent ne prend pas en charge le guidage pendant cette exécution. Les messages en attente seront envoyés à sa fin.",
+    "steer_target_changed": "L’exécution ciblée est terminée ou a changé. Actualisation de la file d’attente.",
+    "steer_message_consumed": "Ce message n’est plus en attente. Actualisation de la file d’attente.",
     "title_one": "{{count}} message en file d'attente",
     "title_other": "{{count}} messages en file d'attente",
     "clear": "Tout effacer",

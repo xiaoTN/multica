@@ -1,9 +1,8 @@
 -- name: LockChatSupplementTarget :one
 SELECT t.* FROM agent_task_queue t
-JOIN task_supplement_capability cap ON cap.task_id = t.id
+JOIN chat_session s ON s.id = t.chat_session_id
 WHERE t.id = @task_id AND t.chat_session_id = @chat_session_id
-  AND t.agent_id = @agent_id AND t.status = 'running'
-  AND cap.capability = 'task-supplement-v1' AND cap.workspace_id = @workspace_id
+  AND t.agent_id = @agent_id AND s.workspace_id = @workspace_id
 FOR UPDATE OF t;
 
 -- name: CreateChatTaskSupplement :exec

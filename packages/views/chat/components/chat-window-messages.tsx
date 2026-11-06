@@ -16,6 +16,7 @@ const CHAT_VIRTUOSO_INITIAL_FIRST_ITEM_INDEX = 1_000_000;
 export function ChatWindowMessages({
   ref,
   annotationDraftKey,
+  onAnnotationConfirmed,
   sessionId,
   pendingTask,
   pendingTaskLoading,
@@ -28,6 +29,7 @@ export function ChatWindowMessages({
 }: {
   ref?: Ref<ChatMessageListRef>;
   annotationDraftKey?: string;
+  onAnnotationConfirmed?: () => void;
   sessionId: string | null;
   pendingTask: ChatPendingTask | null | undefined;
   pendingTaskLoading: boolean;
@@ -81,6 +83,7 @@ export function ChatWindowMessages({
         <ChatMessageList
           ref={ref}
           annotationDraftKey={annotationDraftKey}
+          onAnnotationConfirmed={onAnnotationConfirmed}
           key={sessionId}
           active={isPresent}
           revealKey={sessionId}

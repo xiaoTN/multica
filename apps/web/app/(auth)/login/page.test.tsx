@@ -133,7 +133,7 @@ describe("LoginPage", () => {
         );
       });
       expect(
-        await screen.findByRole("button", { name: "Open Multica Desktop" }),
+        await screen.findByRole("button", { name: "Open Agent团队协作桌面版" }),
       ).toBeInTheDocument();
     } finally {
       Object.defineProperty(window, "location", {

@@ -29,6 +29,7 @@ export type WSEventType =
   | "task:running"
   | "task:waiting_local_directory"
   | "task:progress"
+  | "task:wait_changed"
   | "task:usage"
   | "task:completed"
   | "task:failed"
@@ -654,6 +655,7 @@ export interface WSEventPayloadMap {
   "task:message": TaskMessagePayload;
   "task:cancelled": TaskCancelledPayload;
   "task:progress": unknown;
+  "task:wait_changed": TaskDispatchPayload;
   "task:usage": TaskUsageUpdatedPayload;
   "inbox:new": InboxNewPayload;
   "inbox:read": InboxReadPayload;

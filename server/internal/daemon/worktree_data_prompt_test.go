@@ -18,3 +18,32 @@ func TestWorktreeDataPromptProvidesAllRepositoryLocations(t *testing.T) {
 		}
 	}
 }
+
+func TestWorktreePromptCombinesDeliveryRulesWithPersistentData(t *testing.T) {
+	for _, allLeftovers := range []bool{false, true} {
+		name := "committed work only"
+		want := "If you commit, only your commits are delivered"
+		if allLeftovers {
+			name = "pending user snapshot"
+			want = "even if you have made commits of your own"
+		}
+		t.Run(name, func(t *testing.T) {
+			opts := []PromptOption{
+				WithWorktreeBranch("agent/test/ihome-34", "baseline"),
+				WithWorktreeDataDirs([]string{"/repo/.git/multica-data/session"}),
+			}
+			if allLeftovers {
+				opts = append(opts, WithWorktreeCommitsAllLeftovers())
+			}
+			out := BuildPrompt(Task{IssueID: "issue-1"}, "claude", opts...)
+			for _, required := range []string{
+				"agent/test/ihome-34", "baseline", want,
+				"/repo/.git/multica-data/session", "archives/<运行标识>/files/", "manifest.json",
+			} {
+				if !strings.Contains(out, required) {
+					t.Errorf("combined worktree prompt missing %q", required)
+				}
+			}
+		})
+	}
+}

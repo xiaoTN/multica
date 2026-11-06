@@ -975,9 +975,10 @@ func (h *Handler) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 	// resolved above for the invoke gate.
 	sent, err := h.TaskService.SendDirectChatMessage(r.Context(), session, agent, parseUUID(userID), req.Content, attachmentIDs, actorType, parseUUID(actorID), steerTarget)
 	if err != nil {
+		if steerTarget.Valid && writeChatSteerError(w, err) {
+			return
+		}
 		switch {
-		case errors.Is(err, service.ErrChatSteerUnavailable):
-			writeJSON(w, http.StatusConflict, map[string]string{"error": "chat turn cannot accept additional messages", "code": "chat_steer_unavailable"})
 		case errors.Is(err, service.ErrChatSessionArchived):
 			writeError(w, http.StatusConflict, "chat session is archived")
 		case errors.Is(err, service.ErrChatTaskAgentArchived):
@@ -1322,9 +1323,11 @@ func (h *Handler) ListChatMessagesPage(w http.ResponseWriter, r *http.Request) {
 // optimistic seeds don't have a real task created_at and the timer needs to
 // survive refresh / reopen.
 type PendingChatTaskResponse struct {
-	TaskID    string `json:"task_id,omitempty"`
-	Status    string `json:"status,omitempty"`
-	CreatedAt string `json:"created_at,omitempty"`
+	CanSteer       *bool                      `json:"can_steer,omitempty"`
+	WaitDiagnostic *service.RunWaitDiagnostic `json:"wait_diagnostic,omitempty"`
+	TaskID         string                     `json:"task_id,omitempty"`
+	Status         string                     `json:"status,omitempty"`
+	CreatedAt      string                     `json:"created_at,omitempty"`
 	// WaitReason explains a waiting_local_directory hold: which directory the
 	// task is parked on and, when known, the short id of the task holding it.
 	// Emitted only for that status — on any other one the column still carries
@@ -1670,6 +1673,21 @@ func (h *Handler) GetPendingChatTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	head := tasks[0]
+	var canSteer *bool
+	if head.Status == "running" {
+		capability, err := h.Queries.GetTaskSupplementCapability(r.Context(), head.ID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusInternalServerError, "failed to load steering capability")
+			return
+		}
+		supported := err == nil && capability.Capability == protocol.DaemonCapabilityTaskSupplementV1 && capability.WorkspaceID == session.WorkspaceID
+		canSteer = &supported
+	}
+	var waitDiagnostic *service.RunWaitDiagnostic
+	if row, err := h.Queries.GetAgentTask(r.Context(), head.ID); err == nil {
+		rows := h.TaskService.RefreshRunWaits(r.Context(), []db.AgentTaskQueue{row})
+		waitDiagnostic = service.RunWaitForTask(rows[0])
+	}
 	queued := make([]QueuedChatTaskResponse, 0, len(tasks)-1)
 	for _, task := range tasks[1:] {
 		if task.Status != "queued" {
@@ -1685,12 +1703,14 @@ func (h *Handler) GetPendingChatTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, PendingChatTaskResponse{
-		TaskID:        uuidToString(head.ID),
-		Status:        head.Status,
-		CreatedAt:     timestampToString(head.CreatedAt),
-		WaitReason:    waitReasonForStatus(head.Status, head.WaitReason),
-		SupportsQueue: true,
-		QueuedTasks:   queued,
+		CanSteer:       canSteer,
+		WaitDiagnostic: waitDiagnostic,
+		TaskID:         uuidToString(head.ID),
+		Status:         head.Status,
+		CreatedAt:      timestampToString(head.CreatedAt),
+		WaitReason:     waitReasonForStatus(head.Status, head.WaitReason),
+		SupportsQueue:  true,
+		QueuedTasks:    queued,
 	})
 }
 

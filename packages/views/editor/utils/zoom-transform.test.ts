@@ -14,6 +14,7 @@ import {
   panBy,
   resizeTransform,
   wheelZoomFactor,
+  wheelPanDelta,
   zoomByAtCenter,
   zoomToAt,
   type ZoomTransform,
@@ -103,6 +104,43 @@ describe("clampTransform", () => {
     const transform: ZoomTransform = { scale: 1, x: 100, y: 50 };
 
     expect(clampTransform(transform, content, VIEWPORT)).toEqual(transform);
+  });
+});
+
+describe("content pan bounds", () => {
+  it("stops at all four edges of oversized content", () => {
+    const content = { width: 2000, height: 1200 };
+    expect(clampTransform({ scale: 1, x: -9999, y: -9999 }, content, VIEWPORT, "content"))
+      .toEqual({ scale: 1, x: -1000, y: -600 });
+    expect(clampTransform({ scale: 1, x: 9999, y: 9999 }, content, VIEWPORT, "content"))
+      .toEqual({ scale: 1, x: 0, y: 0 });
+  });
+
+  it("centers the fitting axis of a long image while allowing vertical pan", () => {
+    expect(panBy({ scale: 1, x: 300, y: -1000 }, -500, -500,
+      { width: 400, height: 3000 }, VIEWPORT, "content"))
+      .toEqual({ scale: 1, x: 300, y: -1500 });
+  });
+
+  it("keeps a fitted image centered and bounds zoom-out and resize", () => {
+    const content = { width: 400, height: 200 };
+    expect(panBy(centerTransform(content, VIEWPORT, 1), 500, -500, content, VIEWPORT, "content"))
+      .toEqual(centerTransform(content, VIEWPORT, 1));
+    expect(zoomToAt({ scale: 4, x: -600, y: -200 }, 1, { x: 0, y: 0 }, content, VIEWPORT, "content"))
+      .toEqual(centerTransform(content, VIEWPORT, 1));
+    expect(resizeTransform({ scale: 1, x: -600, y: -200 }, content,
+      { width: 200, height: 100 }, VIEWPORT, "content"))
+      .toEqual(centerTransform(content, VIEWPORT, 1));
+  });
+});
+
+describe("wheelPanDelta", () => {
+  it.each([
+    [0, -2, 3],
+    [1, -32, 48],
+    [2, -2000, 1800],
+  ])("normalizes delta mode %i in both axes", (mode, x, y) => {
+    expect(wheelPanDelta(2, -3, mode, VIEWPORT)).toEqual({ x, y });
   });
 });
 

@@ -1174,30 +1174,94 @@ describe("AttachmentPreviewModal — image zoom", () => {
     expect(currentScale()).toBeCloseTo(0.5, 5);
   });
 
-  it("zooms on wheel without scrolling the page behind the modal", () => {
+  it.each(["ctrlKey", "metaKey"])(
+    "preserves %s wheel zoom without scrolling the page behind the modal",
+    (modifier) => {
+      stubNaturalSize({ width: 1600, height: 800 });
+      renderImagePreview();
+
+      const wheel = new WheelEvent("wheel", {
+        deltaY: -100,
+        [modifier]: true,
+        clientX: 400,
+        clientY: 200,
+        bubbles: true,
+        cancelable: true,
+      });
+      // Dispatched raw rather than via fireEvent.wheel so the test can assert
+      // preventDefault — the thing that stops the page behind from scrolling.
+      act(() => {
+        zoomCanvas().dispatchEvent(wheel);
+      });
+
+      expect(currentScale()).toBeGreaterThan(0.5);
+      expect(wheel.defaultPrevented).toBe(true);
+    },
+  );
+
+  it("pans both axes on ordinary wheel input without zooming or bubbling", () => {
     stubNaturalSize({ width: 1600, height: 800 });
     renderImagePreview();
-
+    fireEvent.click(screen.getByRole("button", { name: "Actual size" }));
+    const ancestorWheel = vi.fn();
+    document.addEventListener("wheel", ancestorWheel);
     const wheel = new WheelEvent("wheel", {
-      deltaY: -100,
-      clientX: 400,
-      clientY: 200,
+      deltaX: 60,
+      deltaY: 30,
       bubbles: true,
       cancelable: true,
     });
-    // Dispatched raw rather than via fireEvent.wheel so the test can assert
-    // preventDefault — the thing that stops the page behind from scrolling.
+    try {
+      act(() => {
+        zoomCanvas().dispatchEvent(wheel);
+      });
+      expect(canvasContent().style.transform).toBe("translate(-460px, -230px) scale(1)");
+      expect(canvasContent()).not.toHaveClass("is-animated");
+      expect(wheel.defaultPrevented).toBe(true);
+      expect(ancestorWheel).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener("wheel", ancestorWheel);
+    }
+  });
+
+  it("accumulates a burst of wheel events before React renders", () => {
+    stubNaturalSize({ width: 1600, height: 800 });
+    renderImagePreview();
+    fireEvent.click(screen.getByRole("button", { name: "Actual size" }));
+    act(() => {
+      for (let i = 0; i < 3; i++) {
+        zoomCanvas().dispatchEvent(
+          new WheelEvent("wheel", {
+            deltaX: 10,
+            deltaY: 20,
+            cancelable: true,
+          }),
+        );
+      }
+    });
+    expect(canvasContent().style.transform).toBe("translate(-430px, -260px) scale(1)");
+  });
+
+  it("holds a fitted image in place and consumes wheel input at its edges", () => {
+    stubNaturalSize({ width: 200, height: 100 });
+    renderImagePreview();
+    const before = canvasContent().style.transform;
+    const wheel = new WheelEvent("wheel", {
+      deltaX: 10000,
+      deltaY: -10000,
+      cancelable: true,
+    });
     act(() => {
       zoomCanvas().dispatchEvent(wheel);
     });
-
-    expect(currentScale()).toBeGreaterThan(0.5);
+    expect(canvasContent().style.transform).toBe(before);
     expect(wheel.defaultPrevented).toBe(true);
   });
 
   it("pans on drag", () => {
     stubNaturalSize({ width: 1600, height: 800 });
     renderImagePreview();
+    fireEvent.click(screen.getByRole("button", { name: "Actual size" }));
     const before = canvasContent().style.transform;
 
     fireEvent.pointerDown(zoomCanvas(), { pointerId: 1, clientX: 400, clientY: 200 });

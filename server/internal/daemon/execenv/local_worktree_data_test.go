@@ -110,3 +110,38 @@ func TestLocalWorktreeDataArchiveFailureKeepsOriginalWorktree(t *testing.T) {
 		t.Fatal("保存失败后原工作树没有保留注册")
 	}
 }
+
+func TestFinalizeKeepsCommittedWorkLeftoversAndIgnoredDataSeparate(t *testing.T) {
+	repo := newTestRepo(t)
+	writeFile(t, filepath.Join(repo, ".gitignore"), "/private/\n")
+	gitRun(t, repo, "add", ".gitignore")
+	gitRun(t, repo, "commit", "-m", "ignore private data")
+	wt := prepareTurn(t, repo, "IHOME-34", turnOneTask)
+	writeFile(t, filepath.Join(wt.Path, "result.txt"), "intended delivery")
+	gitRun(t, wt.Path, "add", "result.txt")
+	gitRun(t, wt.Path, "commit", "-m", "feat: deliver result")
+	committed := gitRun(t, wt.Path, "rev-parse", "HEAD")
+	writeFile(t, filepath.Join(wt.Path, "scratch.txt"), "uncommitted scratch")
+	writeFile(t, filepath.Join(wt.Path, "private", "ledger.json"), "persistent ledger")
+
+	outcome := finalizeOK(t, wt)
+	if tip := gitRun(t, repo, "rev-parse", wt.Branch); tip != committed {
+		t.Fatalf("delivered tip = %s, want intended commit %s", tip, committed)
+	}
+	requireLeftovers(t, repo, outcome, wt.Branch, map[string]string{"scratch.txt": "uncommitted scratch"})
+	for _, ref := range []string{wt.Branch, outcome.LeftoverRef} {
+		if _, err := gitTry(t, repo, "cat-file", "-e", ref+":private/ledger.json"); err == nil {
+			t.Errorf("private ledger was stored in git at %s", ref)
+		}
+	}
+	archives, err := filepath.Glob(filepath.Join(wt.DataDir, "archives", "*", "files", "private", "ledger.json"))
+	if err != nil || len(archives) != 1 {
+		t.Fatalf("expected one persistent ledger archive, got %v: %v", archives, err)
+	}
+	if got := readFile(t, archives[0]); got != "persistent ledger" {
+		t.Fatalf("archived ledger = %q", got)
+	}
+	if _, err := os.Stat(wt.Path); !os.IsNotExist(err) {
+		t.Fatalf("worktree remains after successful archive: %v", err)
+	}
+}

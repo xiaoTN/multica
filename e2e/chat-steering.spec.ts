@@ -21,7 +21,7 @@ async function captureSteeringEvidence(page: Page, path: string, label: string) 
     Object.assign(caption.style, { position: "fixed", top: "12px", right: "12px", zIndex: "2147483647", padding: "12px", maxWidth: "480px", background: "#102c3d", color: "white", borderRadius: "8px", font: "14px/1.5 sans-serif", pointerEvents: "none" });
     document.body.append(caption);
   }, label);
-  try { await page.screenshot({ path }); }
+  try { await page.screenshot({ path, animations: "disabled" }); }
   finally { await page.evaluate(() => document.getElementById("steering-evidence-caption")?.remove()); }
 }
 
